@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HorizonST Control de Accesos</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-content">
+        <h1>Portal HorizonST</h1>
+        <p>Gestión integral de gateways, dispositivos BLE y alarmas.</p>
+        <p class="url-hint">Accede desde: <strong>www.horizonst.com.es</strong></p>
+      </div>
+    </header>
+
+    <main class="container">
+      <section id="login-section" class="card">
+        <h2>Acceso</h2>
+        <form id="login-form">
+          <label for="username">Usuario</label>
+          <input type="text" id="username" name="username" required />
+
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" name="password" required />
+
+          <button type="submit">Entrar</button>
+        </form>
+        <p id="login-error" class="error hidden"></p>
+      </section>
+
+      <section id="dashboard" class="hidden">
+        <nav class="tabs">
+          <button data-target="overview">Panel</button>
+          <button data-target="locations">Lugares</button>
+          <button data-target="categories">Categorías</button>
+          <button data-target="devices">Dispositivos</button>
+          <button data-target="gateways">Gateways</button>
+          <button data-target="messages" class="admin-only">MQTT</button>
+          <button data-target="history">Histórico</button>
+          <button data-target="alarms">Alarmas</button>
+          <button data-target="groups">Categorías de usuarios</button>
+        </nav>
+
+        <section id="overview" class="panel">
+          <h2>Resumen</h2>
+          <div id="overview-content" class="grid"></div>
+        </section>
+
+        <section id="locations" class="panel hidden">
+          <div class="panel-header">
+            <h2>Lugares</h2>
+            <button id="add-location-btn">Nuevo lugar</button>
+          </div>
+          <form id="location-form" class="dialog hidden">
+            <h3>Crear lugar</h3>
+            <label>Nombre</label>
+            <input type="text" name="name" required />
+            <label>Descripción</label>
+            <textarea name="description"></textarea>
+            <label>Foto (URL)</label>
+            <input type="url" name="photo_url" />
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <div id="locations-list" class="grid"></div>
+        </section>
+
+        <section id="categories" class="panel hidden">
+          <div class="panel-header">
+            <h2>Categorías</h2>
+            <button id="add-category-btn">Nueva categoría</button>
+          </div>
+          <form id="category-form" class="dialog hidden">
+            <h3>Crear categoría</h3>
+            <label>Nombre</label>
+            <input type="text" name="name" required />
+            <label>Descripción</label>
+            <textarea name="description"></textarea>
+            <label>Foto (URL)</label>
+            <input type="url" name="photo_url" />
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <div id="categories-list" class="grid"></div>
+        </section>
+
+        <section id="devices" class="panel hidden">
+          <div class="panel-header">
+            <h2>Dispositivos</h2>
+            <div class="action-buttons">
+              <button id="add-device-btn">Añadir dispositivo</button>
+              <button id="assign-device-category-btn">Asignar categoría</button>
+            </div>
+          </div>
+          <form id="device-form" class="dialog hidden">
+            <h3>Registrar dispositivo</h3>
+            <label>MAC BLE</label>
+            <input type="text" name="ble_mac" required />
+            <label>Nombre</label>
+            <input type="text" name="name" />
+            <label>Categoría</label>
+            <input type="number" name="category_id" min="1" />
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <form id="device-category-form" class="dialog hidden">
+            <h3>Asignar categoría a dispositivo</h3>
+            <label>ID Dispositivo</label>
+            <input type="number" name="device_id" required />
+            <label>ID Categoría</label>
+            <input type="number" name="category_id" required />
+            <div class="dialog-actions">
+              <button type="submit">Asignar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <div id="devices-list" class="grid"></div>
+        </section>
+
+        <section id="gateways" class="panel hidden">
+          <div class="panel-header">
+            <h2>Gateways</h2>
+            <div class="action-buttons">
+              <button id="add-gateway-btn" class="admin-only">Nueva gateway</button>
+              <button id="assign-location-btn">Asignar a lugar</button>
+            </div>
+          </div>
+          <form id="gateway-form" class="dialog hidden">
+            <h3>Registrar gateway</h3>
+            <label>MAC</label>
+            <input type="text" name="mac" required />
+            <label>Nombre</label>
+            <input type="text" name="name" required />
+            <label>ID Propietario</label>
+            <input type="number" name="owner_id" required />
+            <label>ID Lugar</label>
+            <input type="number" name="location_id" />
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <form id="gateway-location-form" class="dialog hidden">
+            <h3>Asignar gateway a lugar</h3>
+            <label>ID Gateway</label>
+            <input type="number" name="gateway_id" required />
+            <label>ID Lugar</label>
+            <input type="number" name="location_id" required />
+            <div class="dialog-actions">
+              <button type="submit">Asignar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <div id="gateways-list" class="grid"></div>
+        </section>
+
+        <section id="messages" class="panel hidden admin-only">
+          <h2>Mensajes MQTT</h2>
+          <div id="messages-list" class="log"></div>
+        </section>
+
+        <section id="history" class="panel hidden">
+          <h2>Histórico de dispositivos</h2>
+          <form id="history-form" class="inline-form">
+            <label>ID Dispositivo</label>
+            <input type="number" name="device_id" min="1" required />
+            <button type="submit">Consultar</button>
+          </form>
+          <div id="history-table" class="table"></div>
+        </section>
+
+        <section id="alarms" class="panel hidden">
+          <div class="panel-header">
+            <h2>Alarmas</h2>
+            <button id="add-alarm-btn">Nueva alarma</button>
+          </div>
+          <form id="alarm-form" class="dialog hidden">
+            <h3>Configurar alarma</h3>
+            <label>Nombre</label>
+            <input type="text" name="name" required />
+            <label>Descripción</label>
+            <textarea name="description"></textarea>
+            <label>Tiempo máximo fuera (segundos)</label>
+            <input type="number" name="threshold_seconds" min="30" required />
+            <label>IDs de dispositivos (separados por comas)</label>
+            <input type="text" name="device_ids" required />
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <div id="alarms-list" class="grid"></div>
+          <h3>Eventos de alarma</h3>
+          <div id="alarm-events" class="table"></div>
+        </section>
+
+        <section id="groups" class="panel hidden">
+          <div class="panel-header">
+            <h2>Categorías de usuarios</h2>
+            <div class="action-buttons">
+              <button id="add-group-btn">Nueva categoría</button>
+              <button id="assign-group-btn">Asignar usuarios</button>
+            </div>
+          </div>
+          <form id="group-form" class="dialog hidden">
+            <h3>Crear categoría</h3>
+            <label>Nombre</label>
+            <input type="text" name="name" required />
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <form id="group-member-form" class="dialog hidden">
+            <h3>Asignar usuario a categoría</h3>
+            <label>ID Categoría</label>
+            <input type="number" name="group_id" required />
+            <label>ID Usuario</label>
+            <input type="number" name="user_id" required />
+            <label>Gestiona alarmas</label>
+            <select name="can_manage_alarms">
+              <option value="false">No</option>
+              <option value="true">Sí</option>
+            </select>
+            <div class="dialog-actions">
+              <button type="submit">Guardar</button>
+              <button type="button" data-close>Cerrar</button>
+            </div>
+          </form>
+          <div id="groups-list" class="grid"></div>
+        </section>
+      </section>
+    </main>
+
+    <footer>
+      <p>© 2025 HorizonST. Plataforma de control de accesos BLE.</p>
+    </footer>
+
+    <script src="app.js" type="module"></script>
+  </body>
+</html>
