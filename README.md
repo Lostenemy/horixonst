@@ -17,6 +17,8 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 ## Puesta en marcha
 
+### Ejecución local
+
 1. Crear la base de datos y ejecutar el script de esquema:
 
    ```bash
@@ -34,6 +36,39 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    ```
 
    El servidor escuchará en `http://localhost:8080` y se conectará automáticamente al broker MQTT configurado.
+
+### Despliegue con Docker
+
+1. Copiar el archivo de variables de entorno y, si se desea, modificar los valores por defecto:
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   > El archivo `.env` es opcional; si no existe se utilizarán los valores definidos en `docker-compose.yml`.
+
+2. Construir y levantar los servicios del API y de PostgreSQL:
+
+   ```bash
+   docker compose up --build
+   ```
+
+   Este comando ejecutará dos contenedores:
+
+   - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
+   - **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT.
+
+3. Para ejecutar en segundo plano utiliza:
+
+   ```bash
+   docker compose up -d
+   ```
+
+4. Para detener y eliminar los contenedores:
+
+   ```bash
+   docker compose down
+   ```
 
 ## Credenciales iniciales
 

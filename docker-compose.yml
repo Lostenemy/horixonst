@@ -1,0 +1,53 @@
+version: '3.9'
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: horixonst-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: horixonst
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - horixonst-data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  app:
+    build: .
+    container_name: horixonst-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: horixonst
+      MQTT_HOST: ${MQTT_HOST:-www.agrosystem.es}
+      MQTT_PORT: ${MQTT_PORT:-1887}
+      MQTT_USER: ${MQTT_USER:-Horizon@user2024}
+      MQTT_PASS: ${MQTT_PASS:-Chanel_horizon@2024}
+      MQTT_CLIENT_PREFIX: ${MQTT_CLIENT_PREFIX:-acces_control_server_}
+      MQTT_KEEPALIVE: ${MQTT_KEEPALIVE:-60}
+      MQTT_RECONNECT_PERIOD: ${MQTT_RECONNECT_PERIOD:-1000}
+      MQTT_PROTOCOL_ID: ${MQTT_PROTOCOL_ID:-MQIsdp}
+      MQTT_PROTOCOL_VERSION: ${MQTT_PROTOCOL_VERSION:-3}
+      MQTT_CLEAN: ${MQTT_CLEAN:-true}
+      MQTT_ENCODING: ${MQTT_ENCODING:-utf8}
+      MQTT_CONNECT_TIMEOUT: ${MQTT_CONNECT_TIMEOUT:-10000}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+    ports:
+      - "8080:8080"
+volumes:
+  horixonst-data:
