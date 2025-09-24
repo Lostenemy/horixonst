@@ -43,8 +43,8 @@ const stringPayload = (payload) => {
 };
 
 export const createMqttClient = () => {
-  const host = process.env.MQTT_HOST || 'www.agrosystem.es';
-  const port = Number(process.env.MQTT_PORT || 1887);
+  const host = process.env.MQTT_HOST || 'horizonst.com.es';
+  const port = Number(process.env.MQTT_PORT || 1883);
   const clientId = buildClientId();
 
   const options = {

@@ -6,8 +6,8 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: horixonst
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: Horizonst_user
+      POSTGRES_PASSWORD: 20025@BLELoRa
     ports:
       - "5432:5432"
     volumes:
@@ -31,13 +31,13 @@ services:
       PORT: 8080
       DB_HOST: db
       DB_PORT: 5432
-      DB_USER: postgres
-      DB_PASSWORD: postgres
+      DB_USER: Horizonst_user
+      DB_PASSWORD: 20025@BLELoRa
       DB_NAME: horixonst
-      MQTT_HOST: ${MQTT_HOST:-www.agrosystem.es}
-      MQTT_PORT: ${MQTT_PORT:-1887}
-      MQTT_USER: ${MQTT_USER:-Horizon@user2024}
-      MQTT_PASS: ${MQTT_PASS:-Chanel_horizon@2024}
+      MQTT_HOST: ${MQTT_HOST:-horizonst.com.es}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-mqtt@user}
+      MQTT_PASS: ${MQTT_PASS:-20025@BLELoRa}
       MQTT_CLIENT_PREFIX: ${MQTT_CLIENT_PREFIX:-acces_control_server_}
       MQTT_KEEPALIVE: ${MQTT_KEEPALIVE:-60}
       MQTT_RECONNECT_PERIOD: ${MQTT_RECONNECT_PERIOD:-1000}

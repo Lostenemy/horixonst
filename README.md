@@ -28,6 +28,18 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 2. Copiar `.env.example` a `.env` y ajustar las credenciales de base de datos si es necesario.
 
+   El archivo de ejemplo está preconfigurado con las credenciales proporcionadas:
+
+   ```env
+   DB_USER=Horizonst_user
+   DB_PASSWORD=20025@BLELoRa
+   DB_NAME=horixonst
+   MQTT_HOST=horizonst.com.es
+   MQTT_PORT=1883
+   MQTT_USER=mqtt@user
+   MQTT_PASS=20025@BLELoRa
+   ```
+
 3. Instalar dependencias y arrancar el servidor:
 
    ```bash
