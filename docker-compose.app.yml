@@ -3,4 +3,4 @@ services:
     extends:
       file: docker-compose.yml
       service: app
-    depends_on: {}
+    depends_on: null
