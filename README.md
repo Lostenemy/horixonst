@@ -8,6 +8,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 - **Cliente MQTT** que se conecta al broker proporcionado y procesa los mensajes de los tópicos `devices/MK1`, `devices/MK2` y `devices/MK3`.
 - **Decodificadores** para normalizar tramas BLE Eddystone-TLM y estructuras personalizadas.
 - **PostgreSQL** como base de datos relacional con scripts SQL en `sql/schema.sql` para generar toda la estructura.
+- **pgAdmin 4** como consola web opcional para administrar PostgreSQL cuando se despliega mediante Docker Compose.
 - **Portal web** en `public/` (HTML5 + JavaScript) accesible desde la raíz del servidor (`www.horizonst.com.es`).
 
 ## Requisitos
@@ -71,16 +72,17 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    > El archivo `.env` es opcional; si no existe se utilizarán los valores definidos en `docker-compose.yml`.
 
-2. Construir y levantar los servicios del API, PostgreSQL y el broker MQTT:
+2. Construir y levantar los servicios del API, PostgreSQL, pgAdmin 4 y el broker MQTT:
 
    ```bash
    docker compose up --build
    ```
 
-   Este comando ejecutará tres contenedores:
+   Este comando ejecutará cuatro contenedores:
 
 - **horixonst-mqtt**: broker EMQX con persistencia proporcionada por los volúmenes `emqx-data`, `emqx-log` y `emqx-config`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`).
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
+- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `http://localhost:5050` (o la IP del servidor). Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`.
 - **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
@@ -111,11 +113,13 @@ finalmente la aplicación.
   docker compose -f docker-compose.mqtt.yml up -d
   ```
 
-- **Base de datos PostgreSQL**
+- **Base de datos PostgreSQL + pgAdmin 4**
 
   ```bash
   docker compose -f docker-compose.db.yml up -d
   ```
+
+  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `http://localhost:5050` para abrir pgAdmin 4, inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` y registra un servidor apuntando al host `horixonst-db` en el puerto `5432` con el usuario `Horizonst_user`.
 
 - **Aplicación Node.js / Portal web**
 
@@ -145,6 +149,18 @@ Cuando arranques y detengas servicios de forma individual es normal que Docker C
 muestre avisos sobre "orphan containers"; puedes ignorarlos o añadir la bandera
 `--remove-orphans` si deseas que se eliminen automáticamente los contenedores no definidos
 en el archivo que estés usando.
+
+## pgAdmin 4 integrado
+
+- URL por defecto: `http://localhost:5050`
+- Usuario/contraseña iniciales: valores de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` (por defecto `admin@horizonst.com.es` / `admin1234`).
+- Los datos de configuración y conexiones guardadas se almacenan en el volumen Docker `pgadmin-data`, por lo que se conservarán entre reinicios.
+- Para registrar la base de datos del proyecto en pgAdmin, crea un nuevo servidor con los siguientes parámetros:
+  - **Name**: HorizonST (o el que prefieras)
+  - **Host**: `horixonst-db`
+  - **Port**: `5432`
+  - **Username**: `Horizonst_user`
+  - **Password**: `20025@BLELoRa`
 
 ## Credenciales iniciales
 

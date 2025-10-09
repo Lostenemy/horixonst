@@ -40,6 +40,21 @@ services:
       retries: 10
       start_period: 5s
 
+  pgadmin:
+    image: dpage/pgadmin4:8.13
+    container_name: horixonst-pgadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@horizonst.com.es}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin1234}
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+
   app:
     build: .
     container_name: horixonst-app
@@ -81,3 +96,4 @@ volumes:
   emqx-data:
   emqx-log:
   emqx-config:
+  pgadmin-data:
