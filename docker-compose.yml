@@ -1,5 +1,26 @@
 version: '3.9'
 services:
+  mqtt:
+    image: emqx/emqx:5.8.0
+    container_name: horixonst-mqtt
+    restart: unless-stopped
+    environment:
+      EMQX_ALLOW_ANONYMOUS: "false"
+      EMQX_DASHBOARD__DEFAULT_USERNAME: mqtt
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "20025@BLELoRa"
+      EMQX_AUTH__USER__1__USERNAME: mqtt@user
+      EMQX_AUTH__USER__1__PASSWORD: "20025@BLELoRa"
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+      - "8083:8083"
+      - "8084:8084"
+      - "18083:18083"
+    volumes:
+      - ./emqx/data:/opt/emqx/data
+      - ./emqx/log:/opt/emqx/log
+      - ./emqx/etc:/opt/emqx/etc
+
   db:
     image: postgres:15-alpine
     container_name: horixonst-db
@@ -27,6 +48,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mqtt:
+        condition: service_started
     environment:
       PORT: 8080
       DB_HOST: db
@@ -39,7 +62,7 @@ services:
       DB_ROOT_DATABASE: postgres
       DB_BOOTSTRAP_SCHEMA: ${DB_BOOTSTRAP_SCHEMA:-on-create}
       DB_SCHEMA_PATH: ${DB_SCHEMA_PATH:-}
-      MQTT_HOST: ${MQTT_HOST:-horizonst.com.es}
+      MQTT_HOST: ${MQTT_HOST:-mqtt}
       MQTT_PORT: ${MQTT_PORT:-1883}
       MQTT_USER: ${MQTT_USER:-mqtt@user}
       MQTT_PASS: ${MQTT_PASS:-20025@BLELoRa}

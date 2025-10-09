@@ -40,30 +40,10 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    > Para la conexión MQTT el cliente utiliza por defecto el protocolo 3.1.1 (versión `4`). Si tu broker requiere MQTT 5, ajusta `MQTT_PROTOCOL_VERSION=5`; en ese caso deja `MQTT_PROTOCOL_ID` vacío para que el cliente escoja automáticamente el identificador correcto.
 
-### Configuración del broker MQTT
+### Broker MQTT
 
-El comando de despliegue de EMQX propuesto arranca la autenticación anónima desactivada, por lo que es necesario registrar el usuario que empleará la aplicación antes de que el servicio pueda conectarse.
-
-1. Arranca el broker con el comando facilitado:
-
-   ```bash
-   sudo docker run -d --name emqx --restart unless-stopped \
-     -p 1883:1883 -p 8883:8883 -p 8083:8083 -p 8084:8084 -p 18083:18083 \
-     -v /opt/emqx/data:/opt/emqx/data \
-     -v /opt/emqx/log:/opt/emqx/log \
-     -v /opt/emqx/etc:/opt/emqx/etc \
-     -e EMQX_DASHBOARD__DEFAULT_USERNAME=mqtt \
-     -e EMQX_DASHBOARD__DEFAULT_PASSWORD='20025@BLELoRa' \
-     -e EMQX_ALLOW_ANONYMOUS=false emqx/emqx:5.8.0
-   ```
-
-2. Crea el usuario MQTT que utilizará la aplicación. Puedes hacerlo desde el panel (`http://<tu-servidor>:18083`) autenticándote con las credenciales anteriores y registrando el usuario `mqtt@user` con contraseña `20025@BLELoRa` en el autenticador Password-Based. También puedes usar la CLI del contenedor:
-
-   ```bash
-   sudo docker exec -it emqx /opt/emqx/bin/emqx ctl users add mqtt@user 20025@BLELoRa
-   ```
-
-3. Comprueba que el listener MQTT TCP (puerto 1883) está habilitado. Si decides usar otro puerto, actualiza `MQTT_PORT` en tu `.env` o en las variables de entorno del servicio `horixonst-app`.
+- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` configurado con persistencia en `./emqx/{data,log,etc}`. Expone los puertos `1883`, `8883`, `8083`, `8084` y `18083` al exterior, deshabilita el acceso anónimo y crea automáticamente el usuario `mqtt@user` con contraseña `20025@BLELoRa`. El panel de administración queda disponible en `http://localhost:18083` (o la IP del servidor) usando las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
+- **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt@user` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
 
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
 
@@ -91,16 +71,17 @@ El comando de despliegue de EMQX propuesto arranca la autenticación anónima de
 
    > El archivo `.env` es opcional; si no existe se utilizarán los valores definidos en `docker-compose.yml`.
 
-2. Construir y levantar los servicios del API y de PostgreSQL:
+2. Construir y levantar los servicios del API, PostgreSQL y el broker MQTT:
 
    ```bash
    docker compose up --build
    ```
 
-   Este comando ejecutará dos contenedores:
+   Este comando ejecutará tres contenedores:
 
+- **horixonst-mqtt**: broker EMQX con persistencia montada en `./emqx`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`).
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
-- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT.
+- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
 > Puedes controlar cómo se aplica el esquema SQL mediante `DB_BOOTSTRAP_SCHEMA` (`on-create`, `always` o `never`) y, si lo necesitas, señalar un archivo alternativo con `DB_SCHEMA_PATH`.
