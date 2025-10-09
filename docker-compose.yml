@@ -37,6 +37,8 @@ services:
       DB_ROOT_USER: Horizonst_user
       DB_ROOT_PASSWORD: 20025@BLELoRa
       DB_ROOT_DATABASE: postgres
+      DB_BOOTSTRAP_SCHEMA: ${DB_BOOTSTRAP_SCHEMA:-on-create}
+      DB_SCHEMA_PATH: ${DB_SCHEMA_PATH:-}
       MQTT_HOST: ${MQTT_HOST:-horizonst.com.es}
       MQTT_PORT: ${MQTT_PORT:-1883}
       MQTT_USER: ${MQTT_USER:-mqtt@user}

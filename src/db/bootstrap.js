@@ -1,5 +1,8 @@
 import pkg from 'pg';
 import dotenv from 'dotenv';
+import { readFile } from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
 
@@ -10,6 +13,34 @@ let bootstrapped = false;
 const quoteIdentifier = (value) => value.replace(/"/g, '""');
 
 const withIdentifier = (value) => `"${quoteIdentifier(value)}"`;
+
+const resolveSchemaPath = () => {
+  const configuredPath = process.env.DB_SCHEMA_PATH;
+
+  if (configuredPath && configuredPath.trim().length > 0) {
+    const trimmed = configuredPath.trim();
+    return path.isAbsolute(trimmed)
+      ? trimmed
+      : path.resolve(process.cwd(), trimmed);
+  }
+
+  const defaultUrl = new URL('../../sql/schema.sql', import.meta.url);
+  return fileURLToPath(defaultUrl);
+};
+
+const shouldApplySchema = (createdDatabase) => {
+  const preference = (process.env.DB_BOOTSTRAP_SCHEMA || 'on-create').toLowerCase();
+
+  if (preference === 'never' || preference === 'false') {
+    return false;
+  }
+
+  if (preference === 'always' || preference === 'true') {
+    return true;
+  }
+
+  return createdDatabase;
+};
 
 export default async function bootstrapDatabase() {
   if (bootstrapped) {
@@ -36,6 +67,8 @@ export default async function bootstrapDatabase() {
     ssl
   });
 
+  let createdDatabase = false;
+
   try {
     await client.connect();
 
@@ -53,11 +86,44 @@ export default async function bootstrapDatabase() {
     if (dbExists.rowCount === 0) {
       await client.query(`CREATE DATABASE ${withIdentifier(targetDatabase)} OWNER ${withIdentifier(targetUser)}`);
       console.log(`Created database ${targetDatabase}`);
+      createdDatabase = true;
     } else {
       await client.query(`ALTER DATABASE ${withIdentifier(targetDatabase)} OWNER TO ${withIdentifier(targetUser)}`);
     }
 
     await client.query(`GRANT ALL PRIVILEGES ON DATABASE ${withIdentifier(targetDatabase)} TO ${withIdentifier(targetUser)}`);
+
+    if (shouldApplySchema(createdDatabase)) {
+      const schemaPath = resolveSchemaPath();
+
+      try {
+        const schemaSql = await readFile(schemaPath, 'utf8');
+
+        if (schemaSql && schemaSql.trim().length > 0) {
+          const schemaClient = new Client({
+            host,
+            port,
+            user: rootUser,
+            password: rootPassword,
+            database: targetDatabase,
+            ssl
+          });
+
+          try {
+            await schemaClient.connect();
+            await schemaClient.query(schemaSql);
+            console.log(`Applied schema from ${schemaPath}`);
+          } finally {
+            await schemaClient.end().catch(() => {});
+          }
+        } else {
+          console.warn(`El archivo de esquema ${schemaPath} está vacío; no se aplicaron cambios.`);
+        }
+      } catch (schemaError) {
+        console.error('No se pudo aplicar el esquema SQL durante el arranque automático', schemaError);
+        throw schemaError;
+      }
+    }
 
     bootstrapped = true;
   } catch (error) {
