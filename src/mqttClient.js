@@ -47,14 +47,23 @@ export const createMqttClient = () => {
   const port = Number(process.env.MQTT_PORT || 1883);
   const clientId = buildClientId();
 
+  const rawProtocolVersion = Number(process.env.MQTT_PROTOCOL_VERSION || 4);
+  const protocolVersion = Number.isFinite(rawProtocolVersion) && rawProtocolVersion > 0 ? rawProtocolVersion : 4;
+  const configuredProtocolId = process.env.MQTT_PROTOCOL_ID;
+  const protocolId = configuredProtocolId && configuredProtocolId.trim().length
+    ? configuredProtocolId.trim()
+    : protocolVersion >= 5
+      ? 'MQTT'
+      : 'MQIsdp';
+
   const options = {
     clientId,
     username: process.env.MQTT_USER,
     password: process.env.MQTT_PASS,
     keepalive: Number(process.env.MQTT_KEEPALIVE || 60),
     reconnectPeriod: Number(process.env.MQTT_RECONNECT_PERIOD || 1000),
-    protocolId: process.env.MQTT_PROTOCOL_ID || 'MQIsdp',
-    protocolVersion: Number(process.env.MQTT_PROTOCOL_VERSION || 3),
+    protocolId,
+    protocolVersion,
     clean: process.env.MQTT_CLEAN !== 'false',
     connectTimeout: Number(process.env.MQTT_CONNECT_TIMEOUT || 10000),
     encoding: process.env.MQTT_ENCODING || 'utf8'

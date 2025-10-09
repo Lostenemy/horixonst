@@ -38,6 +38,33 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    > El servidor verifica en cada arranque que existan la base de datos y el rol configurados. Para ello utiliza `DB_ROOT_USER`, `DB_ROOT_PASSWORD` y `DB_ROOT_DATABASE`. Asegúrate de que estas credenciales tengan privilegios de creación cuando el despliegue sea contra una instancia nueva.
 
+   > Para la conexión MQTT el cliente utiliza por defecto el protocolo 3.1.1 (versión `4`). Si tu broker requiere MQTT 5, ajusta `MQTT_PROTOCOL_VERSION=5`; en ese caso deja `MQTT_PROTOCOL_ID` vacío para que el cliente escoja automáticamente el identificador correcto.
+
+### Configuración del broker MQTT
+
+El comando de despliegue de EMQX propuesto arranca la autenticación anónima desactivada, por lo que es necesario registrar el usuario que empleará la aplicación antes de que el servicio pueda conectarse.
+
+1. Arranca el broker con el comando facilitado:
+
+   ```bash
+   sudo docker run -d --name emqx --restart unless-stopped \
+     -p 1883:1883 -p 8883:8883 -p 8083:8083 -p 8084:8084 -p 18083:18083 \
+     -v /opt/emqx/data:/opt/emqx/data \
+     -v /opt/emqx/log:/opt/emqx/log \
+     -v /opt/emqx/etc:/opt/emqx/etc \
+     -e EMQX_DASHBOARD__DEFAULT_USERNAME=mqtt \
+     -e EMQX_DASHBOARD__DEFAULT_PASSWORD='20025@BLELoRa' \
+     -e EMQX_ALLOW_ANONYMOUS=false emqx/emqx:5.8.0
+   ```
+
+2. Crea el usuario MQTT que utilizará la aplicación. Puedes hacerlo desde el panel (`http://<tu-servidor>:18083`) autenticándote con las credenciales anteriores y registrando el usuario `mqtt@user` con contraseña `20025@BLELoRa` en el autenticador Password-Based. También puedes usar la CLI del contenedor:
+
+   ```bash
+   sudo docker exec -it emqx /opt/emqx/bin/emqx ctl users add mqtt@user 20025@BLELoRa
+   ```
+
+3. Comprueba que el listener MQTT TCP (puerto 1883) está habilitado. Si decides usar otro puerto, actualiza `MQTT_PORT` en tu `.env` o en las variables de entorno del servicio `horixonst-app`.
+
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
 
    ```bash
