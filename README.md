@@ -98,6 +98,36 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    docker compose down
    ```
 
+### Lanzadores independientes con Docker Compose
+
+Si necesitas controlar el arranque de cada componente por separado, el repositorio incluye
+archivos específicos que extienden la definición principal y eliminan las dependencias
+cruzadas. De este modo puedes preparar primero el broker MQTT, luego la base de datos y
+finalmente la aplicación.
+
+- **Broker MQTT**
+
+  ```bash
+  docker compose -f docker-compose.mqtt.yml up -d
+  ```
+
+- **Base de datos PostgreSQL**
+
+  ```bash
+  docker compose -f docker-compose.db.yml up -d
+  ```
+
+- **Aplicación Node.js / Portal web**
+
+  ```bash
+  docker compose -f docker-compose.app.yml up -d
+  ```
+
+> El contenedor de la aplicación sigue esperando a que la base de datos y el broker estén
+> operativos para poder completar la fase de bootstrap y conectarse. Cuando gestiones los
+> servicios manualmente, asegúrate de que `horixonst-mqtt` y `horixonst-db` estén en marcha
+> antes de iniciar `horixonst-app`.
+
 ## Credenciales iniciales
 
 En la carga inicial de la base de datos se crea el usuario administrador `admin` con contraseña `admin1234`.

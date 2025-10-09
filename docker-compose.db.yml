@@ -1,0 +1,7 @@
+services:
+  db:
+    extends:
+      file: docker-compose.yml
+      service: db
+volumes:
+  horixonst-data:
