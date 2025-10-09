@@ -19,14 +19,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 ### Ejecución local
 
-1. Crear la base de datos y ejecutar el script de esquema:
-
-   ```bash
-   createdb horixonst
-   psql horixonst < sql/schema.sql
-   ```
-
-2. Copiar `.env.example` a `.env` y ajustar las credenciales de base de datos si es necesario.
+1. Copiar `.env.example` a `.env` y ajustar las credenciales de base de datos si es necesario.
 
    El archivo de ejemplo está preconfigurado con las credenciales proporcionadas:
 
@@ -34,10 +27,22 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    DB_USER=Horizonst_user
    DB_PASSWORD=20025@BLELoRa
    DB_NAME=horixonst
+   DB_ROOT_USER=Horizonst_user
+   DB_ROOT_PASSWORD=20025@BLELoRa
+   DB_ROOT_DATABASE=postgres
    MQTT_HOST=horizonst.com.es
    MQTT_PORT=1883
    MQTT_USER=mqtt@user
    MQTT_PASS=20025@BLELoRa
+   ```
+
+   > El servidor verifica en cada arranque que existan la base de datos y el rol configurados. Para ello utiliza `DB_ROOT_USER`, `DB_ROOT_PASSWORD` y `DB_ROOT_DATABASE`. Asegúrate de que estas credenciales tengan privilegios de creación cuando el despliegue sea contra una instancia nueva.
+
+2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
+
+   ```bash
+   createdb horixonst
+   psql horixonst < sql/schema.sql
    ```
 
 3. Instalar dependencias y arrancar el servidor:
@@ -69,6 +74,8 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
    - **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT.
+
+   > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
 
 3. Para ejecutar en segundo plano utiliza:
 
