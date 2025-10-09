@@ -249,9 +249,9 @@ export const groupDevicesByLocation = async (userId, role) => {
     queryText += ' WHERE d.owner_id = $1';
   }
 
-  queryText += '
-  GROUP BY l.id, l.name, l.photo_url
-  ORDER BY l.name NULLS LAST';
+  queryText += `
+    GROUP BY l.id, l.name, l.photo_url
+    ORDER BY l.name NULLS LAST`;
 
   const { rows } = await query(queryText, params);
   return rows;
