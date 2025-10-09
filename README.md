@@ -42,7 +42,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 ### Broker MQTT
 
-- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` configurado con persistencia en `./emqx/{data,log,etc}`. Expone los puertos `1883`, `8883`, `8083`, `8084` y `18083` al exterior, deshabilita el acceso anónimo y crea automáticamente el usuario `mqtt@user` con contraseña `20025@BLELoRa`. El panel de administración queda disponible en `http://localhost:18083` (o la IP del servidor) usando las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
+- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` configurado con volúmenes nombrados para conservar los datos, registros y configuración (`emqx-data`, `emqx-log`, `emqx-config`). Expone los puertos `1883`, `8883`, `8083`, `8084` y `18083` al exterior, deshabilita el acceso anónimo y crea automáticamente el usuario `mqtt@user` con contraseña `20025@BLELoRa`. El panel de administración queda disponible en `http://localhost:18083` (o la IP del servidor) usando las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
 - **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt@user` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
 
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
@@ -79,7 +79,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    Este comando ejecutará tres contenedores:
 
-- **horixonst-mqtt**: broker EMQX con persistencia montada en `./emqx`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`).
+- **horixonst-mqtt**: broker EMQX con persistencia proporcionada por los volúmenes `emqx-data`, `emqx-log` y `emqx-config`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`).
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
 - **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
 
