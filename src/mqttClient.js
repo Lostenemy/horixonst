@@ -52,9 +52,9 @@ export const createMqttClient = () => {
   const configuredProtocolId = process.env.MQTT_PROTOCOL_ID;
   const protocolId = configuredProtocolId && configuredProtocolId.trim().length
     ? configuredProtocolId.trim()
-    : protocolVersion >= 5
-      ? 'MQTT'
-      : 'MQIsdp';
+    : protocolVersion === 3
+      ? 'MQIsdp'
+      : 'MQTT';
 
   const options = {
     clientId,
