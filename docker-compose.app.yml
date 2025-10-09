@@ -1,6 +1,32 @@
 services:
   app:
-    extends:
-      file: docker-compose.yml
-      service: app
-    depends_on: null
+    build: .
+    container_name: horixonst-app
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      DB_HOST: ${DB_HOST:-horixonst-db}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_USER: ${DB_USER:-Horizonst_user}
+      DB_PASSWORD: ${DB_PASSWORD:-20025@BLELoRa}
+      DB_NAME: ${DB_NAME:-horixonst}
+      DB_ROOT_USER: ${DB_ROOT_USER:-Horizonst_user}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-20025@BLELoRa}
+      DB_ROOT_DATABASE: ${DB_ROOT_DATABASE:-postgres}
+      DB_BOOTSTRAP_SCHEMA: ${DB_BOOTSTRAP_SCHEMA:-on-create}
+      DB_SCHEMA_PATH: ${DB_SCHEMA_PATH:-}
+      MQTT_HOST: ${MQTT_HOST:-horixonst-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-mqtt@user}
+      MQTT_PASS: ${MQTT_PASS:-20025@BLELoRa}
+      MQTT_CLIENT_PREFIX: ${MQTT_CLIENT_PREFIX:-acces_control_server_}
+      MQTT_KEEPALIVE: ${MQTT_KEEPALIVE:-60}
+      MQTT_RECONNECT_PERIOD: ${MQTT_RECONNECT_PERIOD:-1000}
+      MQTT_PROTOCOL_ID: ${MQTT_PROTOCOL_ID:-}
+      MQTT_PROTOCOL_VERSION: ${MQTT_PROTOCOL_VERSION:-4}
+      MQTT_CLEAN: ${MQTT_CLEAN:-true}
+      MQTT_ENCODING: ${MQTT_ENCODING:-utf8}
+      MQTT_CONNECT_TIMEOUT: ${MQTT_CONNECT_TIMEOUT:-10000}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+    ports:
+      - "8080:8080"

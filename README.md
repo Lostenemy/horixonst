@@ -128,6 +128,24 @@ finalmente la aplicación.
 > servicios manualmente, asegúrate de que `horixonst-mqtt` y `horixonst-db` estén en marcha
 > antes de iniciar `horixonst-app`.
 
+Cada lanzador utiliza el mismo nombre de proyecto (derivado de la carpeta) y por tanto
+comparte la red Docker. La definición `docker-compose.app.yml` establece como valores por
+defecto `horixonst-db` y `horixonst-mqtt` para `DB_HOST` y `MQTT_HOST`, de modo que la
+aplicación localizará automáticamente los otros contenedores si los has iniciado con los
+archivos anteriores. Si necesitas utilizar hosts distintos, crea o modifica tu `.env`
+estableciendo esas variables antes de arrancar la aplicación:
+
+```bash
+DB_HOST=mi-db-personal
+MQTT_HOST=mi-broker
+docker compose -f docker-compose.app.yml up -d
+```
+
+Cuando arranques y detengas servicios de forma individual es normal que Docker Compose
+muestre avisos sobre "orphan containers"; puedes ignorarlos o añadir la bandera
+`--remove-orphans` si deseas que se eliminen automáticamente los contenedores no definidos
+en el archivo que estés usando.
+
 ## Credenciales iniciales
 
 En la carga inicial de la base de datos se crea el usuario administrador `admin` con contraseña `admin1234`.
