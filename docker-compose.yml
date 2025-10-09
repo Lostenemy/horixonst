@@ -16,9 +16,9 @@ services:
       - "8084:8084"
       - "18083:18083"
     volumes:
-      - emqx-data:/opt/emqx/data
-      - emqx-log:/opt/emqx/log
-      - emqx-config:/opt/emqx/etc
+      - ./emqx/data:/opt/emqx/data
+      - ./emqx/log:/opt/emqx/log
+      - ./emqx/etc:/opt/emqx/etc
 
   db:
     image: postgres:15-alpine
@@ -93,7 +93,4 @@ services:
       - "8080:8080"
 volumes:
   horixonst-data:
-  emqx-data:
-  emqx-log:
-  emqx-config:
   pgadmin-data:
