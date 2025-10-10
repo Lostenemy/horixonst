@@ -15,6 +15,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 - Node.js 18+
 - PostgreSQL 14+
+- OpenSSL (para generar el certificado autofirmado con el script incluido)
 
 ## Puesta en marcha
 
@@ -43,7 +44,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 ### Broker MQTT
 
-- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` configurado con montajes de directorio (`./emqx/data`, `./emqx/log`, `./emqx/etc`) para conservar datos, registros y configuración dentro del propio repositorio. Expone los puertos `1883`, `8883`, `8083`, `8084` y `18083` al exterior, deshabilita el acceso anónimo y crea automáticamente el usuario `mqtt@user` con contraseña `20025@BLELoRa`. El panel de administración queda disponible en `http://localhost:18083` (o la IP del servidor) usando las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
+- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` configurado con montajes de directorio (`./emqx/data`, `./emqx/log`, `./emqx/etc`) para conservar datos, registros y configuración dentro del propio repositorio. Expone los puertos `1883`, `8883`, `8083`, `8084` y `18083` al exterior, deshabilita el acceso anónimo y crea automáticamente el usuario `mqtt@user` con contraseña `20025@BLELoRa`. El panel de administración queda disponible en `https://localhost:18083` (o la IP del servidor) usando las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
 - **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt@user` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
 
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
@@ -60,7 +61,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    npm run dev
    ```
 
-   El servidor escuchará en `http://localhost:8080` y se conectará automáticamente al broker MQTT configurado.
+    El servidor escuchará en `https://localhost:8080` (acepta el certificado autofirmado la primera vez) y se conectará automáticamente al broker MQTT configurado.
 
 ### Despliegue con Docker
 
@@ -72,7 +73,15 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    > El archivo `.env` es opcional; si no existe se utilizarán los valores definidos en `docker-compose.yml`.
 
-2. Construir y levantar los servicios del API, PostgreSQL, pgAdmin 4 y el broker MQTT:
+2. Generar (o regenerar) el certificado autofirmado que utilizarán la aplicación web, el panel de EMQX y pgAdmin 4:
+
+   ```bash
+   ./scripts/generate-self-signed.sh
+   ```
+
+   El script crea los archivos `certs/selfsigned.crt`, `certs/selfsigned.key` y `certs/selfsigned.pem`. Puedes editarlo o volver a ejecutarlo si necesitas regenerar los certificados.
+
+3. Construir y levantar los servicios del API, PostgreSQL, pgAdmin 4 y el broker MQTT:
 
    ```bash
    docker compose up --build
@@ -80,12 +89,14 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    Este comando ejecutará cuatro contenedores:
 
-- **horixonst-mqtt**: broker EMQX con persistencia proporcionada por los directorios `./emqx/data`, `./emqx/log` y `./emqx/etc`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`).
+- **horixonst-mqtt**: broker EMQX con persistencia proporcionada por los directorios `./emqx/data`, `./emqx/log` y `./emqx/etc`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`). El panel de administración expone HTTPS en `https://localhost:18083` usando el certificado generado en `certs/`.
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
-- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `http://localhost:5050` (o la IP del servidor). Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`.
-- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
+- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `https://localhost:5050` (o la IP del servidor). Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`.
+- **horixonst-app**: servidor Node.js sirviendo el portal web en `https://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
+
+> Al tratarse de certificados autofirmados, los navegadores mostrarán una advertencia la primera vez que accedas a cada URL (`https://localhost:8080`, `https://localhost:5050`, `https://localhost:18083`). Acepta la excepción de seguridad para continuar.
 > Puedes controlar cómo se aplica el esquema SQL mediante `DB_BOOTSTRAP_SCHEMA` (`on-create`, `on-missing`, `always` o `never`) y, si lo necesitas, señalar un archivo alternativo con `DB_SCHEMA_PATH`. En el modo por defecto (`on-create`) el bootstrap también verifica si faltan las tablas básicas (`users`, `user_roles`) y, de ser así, reaplica el esquema automáticamente.
 
 Los directorios `./emqx/data`, `./emqx/log` y `./emqx/etc` se crean en el repositorio para que puedas versionar la configuración base si lo deseas. El contenido real (colas, usuarios creados desde el panel, certificados, etc.) queda fuera de Git gracias a las reglas de `.gitignore`, pero permanece en disco incluso si eliminas los contenedores o cambias de rama.
@@ -109,6 +120,8 @@ archivos específicos que extienden la definición principal y eliminan las depe
 cruzadas. De este modo puedes preparar primero el broker MQTT, luego la base de datos y
 finalmente la aplicación.
 
+> Ejecuta una vez `./scripts/generate-self-signed.sh` antes de usar los lanzadores independientes para asegurarte de que los contenedores encuentran los certificados necesarios.
+
 - **Broker MQTT**
 
   ```bash
@@ -121,7 +134,7 @@ finalmente la aplicación.
   docker compose -f docker-compose.db.yml up -d
   ```
 
-  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `http://localhost:5050` para abrir pgAdmin 4, inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` y registra un servidor apuntando al host `horixonst-db` en el puerto `5432` con el usuario `Horizonst_user`.
+  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `https://localhost:5050` para abrir pgAdmin 4, inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` y registra un servidor apuntando al host `horixonst-db` en el puerto `5432` con el usuario `Horizonst_user`.
 
 - **Aplicación Node.js / Portal web**
 
@@ -154,7 +167,7 @@ en el archivo que estés usando.
 
 ## pgAdmin 4 integrado
 
-- URL por defecto: `http://localhost:5050`
+- URL por defecto: `https://localhost:5050`
 - Usuario/contraseña iniciales: valores de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` (por defecto `admin@horizonst.com.es` / `admin1234`).
 - Los datos de configuración y conexiones guardadas se almacenan en el volumen Docker `pgadmin-data`, por lo que se conservarán entre reinicios.
 - Para registrar la base de datos del proyecto en pgAdmin, crea un nuevo servidor con los siguientes parámetros:

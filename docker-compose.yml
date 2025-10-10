@@ -9,6 +9,11 @@ services:
       EMQX_DASHBOARD__DEFAULT_PASSWORD: "20025@BLELoRa"
       EMQX_AUTH__USER__1__USERNAME: mqtt@user
       EMQX_AUTH__USER__1__PASSWORD: "20025@BLELoRa"
+      EMQX_DASHBOARD__LISTENER__HTTP__ENABLE: "false"
+      EMQX_DASHBOARD__LISTENER__HTTPS__ENABLE: "true"
+      EMQX_DASHBOARD__LISTENER__HTTPS__BIND: 0.0.0.0:18083
+      EMQX_DASHBOARD__LISTENER__HTTPS__CERTFILE: /certs/selfsigned.crt
+      EMQX_DASHBOARD__LISTENER__HTTPS__KEYFILE: /certs/selfsigned.key
     ports:
       - "1883:1883"
       - "8883:8883"
@@ -19,6 +24,7 @@ services:
       - ./emqx/data:/opt/emqx/data
       - ./emqx/log:/opt/emqx/log
       - ./emqx/etc:/opt/emqx/etc
+      - ./certs:/certs:ro
 
   db:
     image: postgres:15-alpine
@@ -49,11 +55,15 @@ services:
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@horizonst.com.es}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin1234}
-      PGADMIN_LISTEN_PORT: 80
+      PGADMIN_ENABLE_TLS: ${PGADMIN_ENABLE_TLS:-1}
+      PGADMIN_CERT_FILE: ${PGADMIN_CERT_FILE:-/certs/selfsigned.crt}
+      PGADMIN_KEY_FILE: ${PGADMIN_KEY_FILE:-/certs/selfsigned.key}
+      PGADMIN_LISTEN_PORT: 443
     ports:
-      - "5050:80"
+      - "5050:443"
     volumes:
       - pgadmin-data:/var/lib/pgadmin
+      - ./certs:/certs:ro
 
   app:
     build: .
@@ -89,8 +99,13 @@ services:
       MQTT_ENCODING: ${MQTT_ENCODING:-utf8}
       MQTT_CONNECT_TIMEOUT: ${MQTT_CONNECT_TIMEOUT:-10000}
       JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+      HTTPS_ENABLED: ${HTTPS_ENABLED:-true}
+      HTTPS_CERT_PATH: ${HTTPS_CERT_PATH:-/certs/selfsigned.crt}
+      HTTPS_KEY_PATH: ${HTTPS_KEY_PATH:-/certs/selfsigned.key}
     ports:
       - "8080:8080"
+    volumes:
+      - ./certs:/certs:ro
 volumes:
   horixonst-data:
   pgadmin-data:

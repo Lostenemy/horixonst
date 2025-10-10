@@ -28,5 +28,10 @@ services:
       MQTT_ENCODING: ${MQTT_ENCODING:-utf8}
       MQTT_CONNECT_TIMEOUT: ${MQTT_CONNECT_TIMEOUT:-10000}
       JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+      HTTPS_ENABLED: ${HTTPS_ENABLED:-true}
+      HTTPS_CERT_PATH: ${HTTPS_CERT_PATH:-/certs/selfsigned.crt}
+      HTTPS_KEY_PATH: ${HTTPS_KEY_PATH:-/certs/selfsigned.key}
     ports:
       - "8080:8080"
+    volumes:
+      - ./certs:/certs:ro

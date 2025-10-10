@@ -4,6 +4,9 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+import http from 'http';
+import https from 'https';
 import routes from './routes/index.js';
 import createMqttClient from './mqttClient.js';
 import { evaluateAlarms } from './services/deviceService.js';
@@ -31,10 +34,37 @@ app.get('*', (req, res) => {
 });
 
 const port = Number(process.env.PORT || 8080);
+const useHttps = String(process.env.HTTPS_ENABLED || '').toLowerCase() === 'true';
 
-const server = app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+let server;
+
+if (useHttps) {
+  const keyPath = process.env.HTTPS_KEY_PATH;
+  const certPath = process.env.HTTPS_CERT_PATH;
+
+  if (!keyPath || !certPath) {
+    console.warn('HTTPS_ENABLED está activo, pero faltan HTTPS_KEY_PATH o HTTPS_CERT_PATH. Iniciando en HTTP.');
+  } else {
+    try {
+      const credentials = {
+        key: fs.readFileSync(keyPath),
+        cert: fs.readFileSync(certPath),
+      };
+      server = https.createServer(credentials, app).listen(port, () => {
+        console.log(`HTTPS server running on port ${port}`);
+      });
+    } catch (err) {
+      console.error('No se pudo iniciar el servidor HTTPS con los certificados proporcionados:', err);
+      process.exit(1);
+    }
+  }
+}
+
+if (!server) {
+  server = http.createServer(app).listen(port, () => {
+    console.log(`HTTP server running on port ${port}`);
+  });
+}
 
 const mqttClient = createMqttClient();
 
