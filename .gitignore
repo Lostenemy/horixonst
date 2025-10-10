@@ -1,0 +1,17 @@
+node_modules/
+.env
+npm-debug.log*
+yarn-error.log
+
+# EMQX persistent data
+emqx/data/*
+emqx/log/*
+emqx/etc/*
+!emqx/data/.gitkeep
+!emqx/log/.gitkeep
+!emqx/etc/.gitkeep
+
+# Certificados autofirmados generados localmente
+certs/*.crt
+certs/*.key
+certs/*.pem

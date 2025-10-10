@@ -1,0 +1,111 @@
+services:
+  mqtt:
+    image: emqx/emqx:5.8.0
+    container_name: horixonst-mqtt
+    restart: unless-stopped
+    environment:
+      EMQX_ALLOW_ANONYMOUS: "false"
+      EMQX_DASHBOARD__DEFAULT_USERNAME: mqtt
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: "20025@BLELoRa"
+      EMQX_AUTH__USER__1__USERNAME: mqtt@user
+      EMQX_AUTH__USER__1__PASSWORD: "20025@BLELoRa"
+      EMQX_DASHBOARD__LISTENER__HTTP__ENABLE: "false"
+      EMQX_DASHBOARD__LISTENER__HTTPS__ENABLE: "true"
+      EMQX_DASHBOARD__LISTENER__HTTPS__BIND: 0.0.0.0:18083
+      EMQX_DASHBOARD__LISTENER__HTTPS__CERTFILE: /certs/selfsigned.crt
+      EMQX_DASHBOARD__LISTENER__HTTPS__KEYFILE: /certs/selfsigned.key
+    ports:
+      - "1883:1883"
+      - "8883:8883"
+      - "8083:8083"
+      - "8084:8084"
+      - "18083:18083"
+    volumes:
+      - ./emqx/data:/opt/emqx/data
+      - ./emqx/log:/opt/emqx/log
+      - ./emqx/etc:/opt/emqx/etc
+      - ./certs:/certs:ro
+
+  db:
+    image: postgres:15-alpine
+    container_name: horixonst-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: horixonst
+      POSTGRES_USER: Horizonst_user
+      POSTGRES_PASSWORD: 20025@BLELoRa
+    ports:
+      - "5432:5432"
+    volumes:
+      - horixonst-data:/var/lib/postgresql/data
+      - ./sql/schema.sql:/docker-entrypoint-initdb.d/00-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U Horizonst_user -d horixonst"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+
+  pgadmin:
+    image: dpage/pgadmin4:8.13
+    container_name: horixonst-pgadmin
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@horizonst.com.es}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin1234}
+      PGADMIN_ENABLE_TLS: ${PGADMIN_ENABLE_TLS:-1}
+      PGADMIN_CERT_FILE: ${PGADMIN_CERT_FILE:-/certs/selfsigned.crt}
+      PGADMIN_KEY_FILE: ${PGADMIN_KEY_FILE:-/certs/selfsigned.key}
+      PGADMIN_LISTEN_PORT: 443
+    ports:
+      - "5050:443"
+    volumes:
+      - pgadmin-data:/var/lib/pgadmin
+      - ./certs:/certs:ro
+
+  app:
+    build: .
+    container_name: horixonst-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
+    environment:
+      PORT: 8080
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: Horizonst_user
+      DB_PASSWORD: 20025@BLELoRa
+      DB_NAME: horixonst
+      DB_ROOT_USER: Horizonst_user
+      DB_ROOT_PASSWORD: 20025@BLELoRa
+      DB_ROOT_DATABASE: postgres
+      DB_BOOTSTRAP_SCHEMA: ${DB_BOOTSTRAP_SCHEMA:-on-create}
+      DB_SCHEMA_PATH: ${DB_SCHEMA_PATH:-}
+      MQTT_HOST: ${MQTT_HOST:-mqtt}
+      MQTT_PORT: ${MQTT_PORT:-1883}
+      MQTT_USER: ${MQTT_USER:-mqtt@user}
+      MQTT_PASS: ${MQTT_PASS:-20025@BLELoRa}
+      MQTT_CLIENT_PREFIX: ${MQTT_CLIENT_PREFIX:-acces_control_server_}
+      MQTT_KEEPALIVE: ${MQTT_KEEPALIVE:-60}
+      MQTT_RECONNECT_PERIOD: ${MQTT_RECONNECT_PERIOD:-1000}
+      MQTT_PROTOCOL_ID: ${MQTT_PROTOCOL_ID:-}
+      MQTT_PROTOCOL_VERSION: ${MQTT_PROTOCOL_VERSION:-4}
+      MQTT_CLEAN: ${MQTT_CLEAN:-true}
+      MQTT_ENCODING: ${MQTT_ENCODING:-utf8}
+      MQTT_CONNECT_TIMEOUT: ${MQTT_CONNECT_TIMEOUT:-10000}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
+      HTTPS_ENABLED: ${HTTPS_ENABLED:-true}
+      HTTPS_CERT_PATH: ${HTTPS_CERT_PATH:-/certs/selfsigned.crt}
+      HTTPS_KEY_PATH: ${HTTPS_KEY_PATH:-/certs/selfsigned.key}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./certs:/certs:ro
+volumes:
+  horixonst-data:
+  pgadmin-data:
