@@ -1,0 +1,9 @@
+services:
+  mqtt:
+    extends:
+      file: docker-compose.yml
+      service: mqtt
+volumes:
+  emqx-data:
+  emqx-log:
+  emqx-config:

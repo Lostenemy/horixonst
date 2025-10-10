@@ -1,0 +1,12 @@
+services:
+  db:
+    extends:
+      file: docker-compose.yml
+      service: db
+  pgadmin:
+    extends:
+      file: docker-compose.yml
+      service: pgadmin
+volumes:
+  horixonst-data:
+  pgadmin-data:
