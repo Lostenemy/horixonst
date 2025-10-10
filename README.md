@@ -91,7 +91,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 - **horixonst-mqtt**: broker EMQX con persistencia gestionada mediante volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`), accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`). El panel de administración expone HTTPS en `https://localhost:18083` usando el certificado generado en `certs/`.
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
-- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `https://localhost:5050` (o la IP del servidor). Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`.
+- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `https://localhost:5050` (o la IP del servidor). Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. El contenedor carga automáticamente `pgadmin/servers.json`, que ya registra la base de datos `Horizonst` apuntando al host `horixonst-db` con el usuario `Horizonst_user`.
 - **horixonst-app**: servidor Node.js sirviendo el portal web en `https://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
@@ -134,7 +134,7 @@ finalmente la aplicación.
   docker compose -f docker-compose.db.yml up -d
   ```
 
-  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `https://localhost:5050` para abrir pgAdmin 4, inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` y registra un servidor apuntando al host `horixonst-db` en el puerto `5432` con el usuario `Horizonst_user`.
+  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `https://localhost:5050` para abrir pgAdmin 4 e inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. Encontrarás ya preconfigurado el servidor `Horizonst`, conectado a `horixonst-db:5432` con el usuario `Horizonst_user`. Si necesitas modificar el registro (por ejemplo, para usar otra base de datos o credenciales), edita `pgadmin/servers.json` antes de arrancar el contenedor.
 
 - **Aplicación Node.js / Portal web**
 
