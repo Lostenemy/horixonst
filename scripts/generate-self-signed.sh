@@ -23,7 +23,9 @@ openssl req -x509 -nodes -newkey rsa:4096 \
   -addext "subjectAltName=DNS:localhost,DNS:horizonst.com.es,DNS:*.horizonst.com.es,IP:127.0.0.1"
 
 cat "${CERT_FILE}" "${KEY_FILE}" > "${PEM_FILE}"
-chmod 600 "${KEY_FILE}" "${CERT_FILE}" "${PEM_FILE}"
+# Garantiza permisos legibles para los contenedores (p. ej. usuarios pgadmin/emqx)
+chmod 644 "${CERT_FILE}" "${PEM_FILE}"
+chmod 644 "${KEY_FILE}"
 
 echo "Self-signed certificate created:"
 echo "  Key : ${KEY_FILE}"
