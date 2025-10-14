@@ -52,12 +52,15 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@horizonst.com.es}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin1234}
       PGADMIN_ENABLE_TLS: ${PGADMIN_ENABLE_TLS:-0}
-      PGADMIN_LISTEN_PORT: 5050
+      PGADMIN_LISTEN_PORT: ${PGADMIN_LISTEN_PORT:-5050}
+      PGADMIN_CERTFILE: ${PGADMIN_CERTFILE:-/certs/pgadmin-5050.crt}
+      PGADMIN_KEYFILE: ${PGADMIN_KEYFILE:-/certs/pgadmin-5050.key}
     ports:
-      - "127.0.0.1:5050:5050"
+      - "127.0.0.1:${PGADMIN_PORT:-5050}:${PGADMIN_LISTEN_PORT:-5050}"
     volumes:
       - pgadmin-data:/var/lib/pgadmin
       - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./certs:/certs:ro
 
   app:
     build: .

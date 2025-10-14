@@ -13,6 +13,7 @@ declare -a CERT_TARGETS=(
   "app:8080"
   "mqtt:18083"
   "pgadmin:505"
+  "pgadmin:5050"
 )
 
 subject_alt_names="DNS:localhost,DNS:horizonst.com.es,DNS:*.horizonst.com.es,IP:127.0.0.1"
