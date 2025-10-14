@@ -171,7 +171,19 @@ en el archivo que estés usando.
 - URL por defecto: `http://127.0.0.1:${PGADMIN_PORT:-5050}`
 - Usuario/contraseña iniciales: valores de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` (por defecto `admin@horizonst.com.es` / `admin1234`).
 - Los datos de configuración y conexiones guardadas se almacenan en el volumen Docker `pgadmin-data`, por lo que se conservarán entre reinicios.
-- Para exponer pgAdmin bajo HTTPS directamente desde el contenedor, establece `PGADMIN_ENABLE_TLS=1` y asegúrate de que `PGADMIN_CERTFILE` y `PGADMIN_KEYFILE` apuntan a los ficheros generados por `scripts/generate-self-signed.sh` (por defecto `/certs/pgadmin-5050.crt` y `/certs/pgadmin-5050.key`). El archivo de Compose ya monta la carpeta `certs/` en modo de solo lectura, por lo que basta con ejecutar el script antes de levantar el servicio. Si prefieres delegar el TLS en un proxy inverso (por ejemplo Nginx), mantén `PGADMIN_ENABLE_TLS=0` y realiza el proxy contra `http://127.0.0.1:${PGADMIN_PORT:-5050}`.
+- Para exponer pgAdmin bajo HTTPS directamente desde el contenedor, establece `PGADMIN_ENABLE_TLS=1` y asegúrate de que `PGADMIN_CERTFILE` y `PGADMIN_KEYFILE` apuntan a los ficheros generados por `scripts/generate-self-signed.sh` (por defecto `/certs/pgadmin-5050.crt` y `/certs/pgadmin-5050.key`). El archivo de Compose ya monta la carpeta `certs/` en modo de solo lectura, por lo que basta con ejecutar el script antes de levantar el servicio.
+- Si delegas el TLS en un proxy inverso (por ejemplo Nginx) y sirves el portal bajo `https://horizonst.com.es/pgadmin`, mantén `PGADMIN_ENABLE_TLS=0` y realiza el proxy contra `http://127.0.0.1:${PGADMIN_PORT:-5050}`. Añade las cabeceras `X-Forwarded-Proto`, `X-Forwarded-Host` y, si utilizas un subpath como `/pgadmin`, `X-Forwarded-Prefix`. Estos valores se propagan a pgAdmin a través de las variables `PGADMIN_PROXY_X_FORWARDED_PROTO`, `PGADMIN_PROXY_X_FORWARDED_HOST` y `PGADMIN_PROXY_X_FORWARDED_PATH` (todas configurables en `.env`). Un ejemplo de bloque Nginx sería:
+
+  ```nginx
+  location /pgadmin/ {
+      proxy_pass http://127.0.0.1:5050/;
+      proxy_set_header X-Forwarded-Proto https;
+      proxy_set_header X-Forwarded-Host horizonst.com.es;
+      proxy_set_header X-Forwarded-Prefix /pgadmin;
+  }
+  ```
+
+  Con esta configuración la consola web respeta el esquema HTTPS, conserva las cookies bajo el dominio correcto y genera enlaces relativos al subpath `/pgadmin`.
 - Para registrar la base de datos del proyecto en pgAdmin, crea un nuevo servidor con los siguientes parámetros:
   - **Name**: HorizonST (o el que prefieras)
   - **Host**: `horixonst-db`
