@@ -12,8 +12,8 @@ services:
       EMQX_DASHBOARD__LISTENER__HTTP__ENABLE: "false"
       EMQX_DASHBOARD__LISTENER__HTTPS__ENABLE: "true"
       EMQX_DASHBOARD__LISTENER__HTTPS__BIND: 0.0.0.0:18083
-      EMQX_DASHBOARD__LISTENER__HTTPS__CERTFILE: /certs/selfsigned.crt
-      EMQX_DASHBOARD__LISTENER__HTTPS__KEYFILE: /certs/selfsigned.key
+      EMQX_DASHBOARD__LISTENER__HTTPS__CERTFILE: /certs/mqtt-18083.crt
+      EMQX_DASHBOARD__LISTENER__HTTPS__KEYFILE: /certs/mqtt-18083.key
     ports:
       - "1883:1883"
       - "8883:8883"
@@ -56,8 +56,8 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@horizonst.com.es}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin1234}
       PGADMIN_ENABLE_TLS: ${PGADMIN_ENABLE_TLS:-1}
-      PGADMIN_CERT_FILE: ${PGADMIN_CERT_FILE:-/certs/selfsigned.crt}
-      PGADMIN_KEY_FILE: ${PGADMIN_KEY_FILE:-/certs/selfsigned.key}
+      PGADMIN_CERT_FILE: ${PGADMIN_CERT_FILE:-/certs/pgadmin-505.crt}
+      PGADMIN_KEY_FILE: ${PGADMIN_KEY_FILE:-/certs/pgadmin-505.key}
       PGADMIN_LISTEN_PORT: 443
     ports:
       - "5050:443"
@@ -101,8 +101,8 @@ services:
       MQTT_CONNECT_TIMEOUT: ${MQTT_CONNECT_TIMEOUT:-10000}
       JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey}
       HTTPS_ENABLED: ${HTTPS_ENABLED:-true}
-      HTTPS_CERT_PATH: ${HTTPS_CERT_PATH:-/certs/selfsigned.crt}
-      HTTPS_KEY_PATH: ${HTTPS_KEY_PATH:-/certs/selfsigned.key}
+      HTTPS_CERT_PATH: ${HTTPS_CERT_PATH:-/certs/app-8080.crt}
+      HTTPS_KEY_PATH: ${HTTPS_KEY_PATH:-/certs/app-8080.key}
     ports:
       - "8080:8080"
     volumes:

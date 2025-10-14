@@ -79,7 +79,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    ./scripts/generate-self-signed.sh
    ```
 
-   El script crea (o reaprovecha, si ya existen) los archivos `certs/selfsigned.crt`, `certs/selfsigned.key` y `certs/selfsigned.pem`, y ajusta sus permisos para que los contenedores (pgAdmin, EMQX y la aplicación) puedan leerlos sin problemas. Puedes volver a ejecutarlo en cualquier momento: si detecta certificados previos simplemente regenerará el bundle `.pem` y aplicará los permisos correctos.
+   El script genera (y reaprovecha si ya existen) tres parejas de certificados específicos: `certs/app-8080.{crt,key,pem}`, `certs/mqtt-18083.{crt,key,pem}` y `certs/pgadmin-505.{crt,key,pem}`. Tras cada ejecución también crea los archivos heredados `certs/selfsigned.{crt,key,pem}` para mantener compatibilidad con despliegues anteriores. Puedes relanzarlo en cualquier momento: si detecta llaves previas simplemente regenerará los bundles `.pem` y normalizará los permisos.
 
 3. Construir y levantar los servicios del API, PostgreSQL, pgAdmin 4 y el broker MQTT:
 
