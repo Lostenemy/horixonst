@@ -91,7 +91,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 - **horixonst-mqtt**: broker EMQX con persistencia gestionada mediante volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`), accesible desde los puertos publicados en loopback (`127.0.0.1:1883`, `127.0.0.1:8883`, `127.0.0.1:8083`, `127.0.0.1:8084`, `127.0.0.1:18083`). El panel de administración sirve HTTP en `http://127.0.0.1:18083` y se espera que un proxy inverso externo gestione TLS si es necesario.
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
-- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `http://127.0.0.1:${PGADMIN_PORT:-5050}`. Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. El contenedor carga automáticamente `pgadmin/servers.json`, que ya registra la base de datos `Horizonst` apuntando al host `horixonst-db` con el usuario `Horizonst_user`.
+- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/`. Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. El contenedor carga automáticamente `pgadmin/servers.json`, que ya registra la base de datos `Horizonst` apuntando al host `horixonst-db` con el usuario `Horizonst_user`.
 - **horixonst-app**: servidor Node.js sirviendo el portal web en `http://127.0.0.1:8080` y conectado al broker MQTT interno (host `mqtt`).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
@@ -135,7 +135,7 @@ finalmente la aplicación.
   docker compose -f docker-compose.db.yml up -d
   ```
 
-  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `http://127.0.0.1:${PGADMIN_PORT:-5050}` para abrir pgAdmin 4 e inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. Encontrarás ya preconfigurado el servidor `Horizonst`, conectado a `horixonst-db:5432` con el usuario `Horizonst_user`. Si necesitas modificar el registro (por ejemplo, para usar otra base de datos o credenciales), edita `pgadmin/servers.json` antes de arrancar el contenedor.
+  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/` para abrir pgAdmin 4 e inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. Encontrarás ya preconfigurado el servidor `Horizonst`, conectado a `horixonst-db:5432` con el usuario `Horizonst_user`. Si necesitas modificar el registro (por ejemplo, para usar otra base de datos o credenciales), edita `pgadmin/servers.json` antes de arrancar el contenedor.
 
 - **Aplicación Node.js / Portal web**
 
@@ -168,15 +168,16 @@ en el archivo que estés usando.
 
 ## pgAdmin 4 integrado
 
-- URL por defecto: `http://127.0.0.1:${PGADMIN_PORT:-5050}`
+- URL por defecto: `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/`. Si necesitas comprobar que responde sin pasar por Nginx puedes ejecutar `curl http://127.0.0.1:5050/pgadmin/` desde el host.
 - Usuario/contraseña iniciales: valores de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` (por defecto `admin@horizonst.com.es` / `admin1234`).
 - Los datos de configuración y conexiones guardadas se almacenan en el volumen Docker `pgadmin-data`, por lo que se conservarán entre reinicios.
-- Para exponer pgAdmin bajo HTTPS directamente desde el contenedor, establece `PGADMIN_ENABLE_TLS=1` y asegúrate de que `PGADMIN_CERTFILE` y `PGADMIN_KEYFILE` apuntan a los ficheros generados por `scripts/generate-self-signed.sh` (por defecto `/certs/pgadmin-5050.crt` y `/certs/pgadmin-5050.key`). El archivo de Compose ya monta la carpeta `certs/` en modo de solo lectura, por lo que basta con ejecutar el script antes de levantar el servicio.
-- Si delegas el TLS en un proxy inverso (por ejemplo Nginx) y sirves el portal bajo `https://horizonst.com.es/pgadmin`, mantén `PGADMIN_ENABLE_TLS=0` y realiza el proxy contra `http://127.0.0.1:${PGADMIN_PORT:-5050}`. Añade las cabeceras `X-Forwarded-Proto`, `X-Forwarded-Host` y, si utilizas un subpath como `/pgadmin`, `X-Forwarded-Prefix`. Estos valores se propagan a pgAdmin a través de las variables `PGADMIN_PROXY_X_FORWARDED_PROTO`, `PGADMIN_PROXY_X_FORWARDED_HOST` y `PGADMIN_PROXY_X_FORWARDED_PATH` (todas configurables en `.env`). No es necesario que añadas comillas manualmente al definirlas: el archivo de Compose ya envuelve automáticamente cada valor entre `'` para que pgAdmin acepte la sintaxis de Python en su fichero de configuración. Un ejemplo de bloque Nginx sería:
+- El contenedor escucha únicamente por HTTP en el puerto 80 (mapeado como `127.0.0.1:5050`). La terminación TLS se delega en Nginx u otro proxy inverso, por lo que `PGADMIN_ENABLE_TLS` permanece en `False`.
+- El archivo `pgadmin/config_local.py` fija automáticamente `SCRIPT_NAME` y `URL_PREFIX` en `/pgadmin`, de modo que todas las rutas generadas son compatibles con el reverse proxy. Si necesitas ajustar el esquema que emplean los enlaces absolutos puedes modificar la variable `PGADMIN_PREFERRED_URL_SCHEME` en `.env` (por defecto `https`).
+- Si publicas la consola bajo `https://horizonst.com.es/pgadmin`, asegúrate de que Nginx reenvía las cabeceras `X-Forwarded-Proto`, `X-Forwarded-Host` y `X-Forwarded-Prefix`. Estas se pueden propagar mediante las variables `PGADMIN_PROXY_X_FORWARDED_PROTO`, `PGADMIN_PROXY_X_FORWARDED_HOST` y `PGADMIN_PROXY_X_FORWARDED_PATH` (todas configurables en `.env`). No añadas comillas manualmente: el archivo de Compose ya envuelve cada valor entre `'` para que pgAdmin acepte la sintaxis de Python en su fichero de configuración. Un ejemplo de bloque Nginx sería:
 
   ```nginx
   location /pgadmin/ {
-      proxy_pass http://127.0.0.1:5050/;
+      proxy_pass http://127.0.0.1:5050/pgadmin/;
       proxy_set_header X-Forwarded-Proto https;
       proxy_set_header X-Forwarded-Host horizonst.com.es;
       proxy_set_header X-Forwarded-Prefix /pgadmin;
