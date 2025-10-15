@@ -171,7 +171,8 @@ en el archivo que estés usando.
 - URL por defecto: `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/`. Si necesitas comprobar que responde sin pasar por Nginx puedes ejecutar `curl http://127.0.0.1:5050/pgadmin/` desde el host.
 - Usuario/contraseña iniciales: valores de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` (por defecto `admin@horizonst.com.es` / `admin1234`).
 - Los datos de configuración y conexiones guardadas se almacenan en el volumen Docker `pgadmin-data`, por lo que se conservarán entre reinicios.
-- El contenedor escucha únicamente por HTTP en el puerto 80 (mapeado como `127.0.0.1:5050`). La terminación TLS se delega en Nginx u otro proxy inverso, por lo que `PGADMIN_ENABLE_TLS` permanece en `False`.
+- Si anteriormente habilitaste TLS interno en pgAdmin, elimina la variable `PGADMIN_ENABLE_TLS` de tu `.env` (si existiese) y recrea el servicio con `docker compose -f docker-compose.db.yml up -d --force-recreate pgadmin` para que arranque únicamente en HTTP.
+- El contenedor escucha únicamente por HTTP en el puerto 80 (mapeado como `127.0.0.1:5050`). La terminación TLS se delega en Nginx u otro proxy inverso, por lo que no es necesario definir variables de TLS dentro del contenedor.
 - El archivo `pgadmin/config_local.py` aplica `SCRIPT_NAME=/pgadmin` y `ENABLE_PROXY_FIX`, aprovechando las variables de entorno `SCRIPT_NAME` y `PGADMIN_PREFERRED_URL_SCHEME` si deseas personalizarlas.
 - Para publicar la consola en `https://horizonst.com.es/pgadmin`, configura Nginx para forzar la barra final y reenviar la ruta al servicio local:
 
