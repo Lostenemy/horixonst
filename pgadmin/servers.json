@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "Horizonst",
+      "Group": "Horizonst",
+      "Host": "horixonst-db",
+      "Port": 5432,
+      "MaintenanceDB": "postgres",
+      "Username": "Horizonst_user",
+      "SSLMode": "prefer"
+    }
+  }
+}

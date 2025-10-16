@@ -8,12 +8,14 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 - **Cliente MQTT** que se conecta al broker proporcionado y procesa los mensajes de los tópicos `devices/MK1`, `devices/MK2` y `devices/MK3`.
 - **Decodificadores** para normalizar tramas BLE Eddystone-TLM y estructuras personalizadas.
 - **PostgreSQL** como base de datos relacional con scripts SQL en `sql/schema.sql` para generar toda la estructura.
+- **pgAdmin 4** como consola web opcional para administrar PostgreSQL cuando se despliega mediante Docker Compose.
 - **Portal web** en `public/` (HTML5 + JavaScript) accesible desde la raíz del servidor (`www.horizonst.com.es`).
 
 ## Requisitos
 
 - Node.js 18+
 - PostgreSQL 14+
+- OpenSSL (solo si deseas generar certificados autofirmados con el script opcional)
 
 ## Puesta en marcha
 
@@ -42,7 +44,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 ### Broker MQTT
 
-- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` configurado con volúmenes nombrados para conservar los datos, registros y configuración (`emqx-data`, `emqx-log`, `emqx-config`). Expone los puertos `1883`, `8883`, `8083`, `8084` y `18083` al exterior, deshabilita el acceso anónimo y crea automáticamente el usuario `mqtt@user` con contraseña `20025@BLELoRa`. El panel de administración queda disponible en `http://localhost:18083` (o la IP del servidor) usando las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
+- **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` que monta volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`) para conservar datos, registros y configuración sin depender de carpetas del repositorio. Todos los puertos (`1883`, `8883`, `8083`, `8084`, `18083`) se publican en la interfaz de loopback (`127.0.0.1`) para que un proxy inverso como Nginx gestione el acceso exterior. El listener HTTP del panel queda disponible en `http://127.0.0.1:18083` con las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
 - **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt@user` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
 
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
@@ -59,7 +61,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    npm run dev
    ```
 
-   El servidor escuchará en `http://localhost:8080` y se conectará automáticamente al broker MQTT configurado.
+   El servidor escuchará en `http://localhost:8080` y se conectará automáticamente al broker MQTT configurado. Si prefieres activar TLS directamente en la aplicación, establece `HTTPS_ENABLED=true` y genera certificados con `./scripts/generate-self-signed.sh`.
 
 ### Despliegue con Docker
 
@@ -71,20 +73,34 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
    > El archivo `.env` es opcional; si no existe se utilizarán los valores definidos en `docker-compose.yml`.
 
-2. Construir y levantar los servicios del API, PostgreSQL y el broker MQTT:
+2. (Opcional) Generar certificados autofirmados si quieres que los contenedores sirvan TLS directamente. Para despliegues detrás de un proxy inverso (por ejemplo Nginx) que ya gestiona los certificados públicos puedes omitir este paso.
+
+   ```bash
+   ./scripts/generate-self-signed.sh
+   ```
+
+  El script crea (y reaprovecha si ya existen) certificados específicos para cada servicio expuesto: `certs/app-8080.{crt,key,pem}`, `certs/mqtt-18083.{crt,key,pem}`, `certs/pgadmin-505.{crt,key,pem}` y `certs/pgadmin-5050.{crt,key,pem}`. Tras cada ejecución también genera los artefactos heredados `certs/selfsigned.{crt,key,pem}` para mantener compatibilidad con despliegues anteriores. Puedes relanzarlo en cualquier momento: si detecta llaves previas regenerará los bundles `.pem` y normalizará los permisos.
+
+3. Construir y levantar los servicios del API, PostgreSQL, pgAdmin 4 y el broker MQTT:
 
    ```bash
    docker compose up --build
    ```
 
-   Este comando ejecutará tres contenedores:
+   Este comando ejecutará cuatro contenedores:
 
-- **horixonst-mqtt**: broker EMQX con persistencia proporcionada por los volúmenes `emqx-data`, `emqx-log` y `emqx-config`, accesible desde los puertos publicados (`1883`, `8883`, `8083`, `8084`, `18083`).
+- **horixonst-mqtt**: broker EMQX con persistencia gestionada mediante volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`), accesible desde los puertos publicados en loopback (`127.0.0.1:1883`, `127.0.0.1:8883`, `127.0.0.1:8083`, `127.0.0.1:8084`, `127.0.0.1:18083`). El panel de administración sirve HTTP en `http://127.0.0.1:18083` y se espera que un proxy inverso externo gestione TLS si es necesario.
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
-- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://localhost:8080` y conectado al broker MQTT interno (host `mqtt`).
+- **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/`. Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. El contenedor carga automáticamente `pgadmin/servers.json`, que ya registra la base de datos `Horizonst` apuntando al host `horixonst-db` con el usuario `Horizonst_user`.
+- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://127.0.0.1:8080` y conectado al broker MQTT interno (host `mqtt`).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
-> Puedes controlar cómo se aplica el esquema SQL mediante `DB_BOOTSTRAP_SCHEMA` (`on-create`, `always` o `never`) y, si lo necesitas, señalar un archivo alternativo con `DB_SCHEMA_PATH`.
+
+> Puedes controlar cómo se aplica el esquema SQL mediante `DB_BOOTSTRAP_SCHEMA` (`on-create`, `on-missing`, `always` o `never`) y, si lo necesitas, señalar un archivo alternativo con `DB_SCHEMA_PATH`. En el modo por defecto (`on-create`) el bootstrap también verifica si faltan las tablas básicas (`users`, `user_roles`) y, de ser así, reaplica el esquema automáticamente.
+
+> Como todos los puertos se exponen únicamente en `127.0.0.1`, configura tu reverse proxy (por ejemplo, Nginx) para aceptar las peticiones públicas en `horizonst.com.es`, terminar TLS y reenviar el tráfico a las direcciones locales indicadas arriba.
+
+Los volúmenes `emqx-data`, `emqx-log` y `emqx-config` quedan gestionados por Docker, por lo que conservan colas, usuarios creados desde el panel, certificados y demás información incluso si eliminas los contenedores o cambias de rama. Puedes inspeccionarlos con `docker volume ls` y `docker volume inspect` cuando necesites localizar su ruta física.
 
 3. Para ejecutar en segundo plano utiliza:
 
@@ -105,17 +121,21 @@ archivos específicos que extienden la definición principal y eliminan las depe
 cruzadas. De este modo puedes preparar primero el broker MQTT, luego la base de datos y
 finalmente la aplicación.
 
+> Si quieres servir TLS directamente desde los contenedores, ejecuta `./scripts/generate-self-signed.sh` antes de usar los lanzadores independientes.
+
 - **Broker MQTT**
 
   ```bash
   docker compose -f docker-compose.mqtt.yml up -d
   ```
 
-- **Base de datos PostgreSQL**
+- **Base de datos PostgreSQL + pgAdmin 4**
 
   ```bash
   docker compose -f docker-compose.db.yml up -d
   ```
+
+  Este archivo lanza simultáneamente `horixonst-db` y `horixonst-pgadmin`. Accede a `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/` para abrir pgAdmin 4 e inicia sesión con las credenciales de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. Encontrarás ya preconfigurado el servidor `Horizonst`, conectado a `horixonst-db:5432` con el usuario `Horizonst_user`. Si necesitas modificar el registro (por ejemplo, para usar otra base de datos o credenciales), edita `pgadmin/servers.json` antes de arrancar el contenedor.
 
 - **Aplicación Node.js / Portal web**
 
@@ -145,6 +165,40 @@ Cuando arranques y detengas servicios de forma individual es normal que Docker C
 muestre avisos sobre "orphan containers"; puedes ignorarlos o añadir la bandera
 `--remove-orphans` si deseas que se eliminen automáticamente los contenedores no definidos
 en el archivo que estés usando.
+
+## pgAdmin 4 integrado
+
+- URL por defecto: `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/`. Si necesitas comprobar que responde sin pasar por Nginx puedes ejecutar `curl http://127.0.0.1:5050/pgadmin/` desde el host.
+- Usuario/contraseña iniciales: valores de `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD` (por defecto `admin@horizonst.com.es` / `admin1234`).
+- Los datos de configuración y conexiones guardadas se almacenan en el volumen Docker `pgadmin-data`, por lo que se conservarán entre reinicios.
+- Si anteriormente habilitaste TLS interno en pgAdmin, elimina la variable `PGADMIN_ENABLE_TLS` de tu `.env` (si existiese) y recrea el servicio con `docker compose -f docker-compose.db.yml up -d --force-recreate pgadmin` para que arranque únicamente en HTTP.
+- El contenedor escucha únicamente por HTTP en el puerto 80 (mapeado como `127.0.0.1:5050`). La terminación TLS se delega en Nginx u otro proxy inverso, por lo que no es necesario definir variables de TLS dentro del contenedor.
+- El archivo `pgadmin/config_local.py` aplica `SCRIPT_NAME=/pgadmin` y `ENABLE_PROXY_FIX`, aprovechando las variables de entorno `SCRIPT_NAME` y `PGADMIN_PREFERRED_URL_SCHEME` si deseas personalizarlas.
+- Para publicar la consola en `https://horizonst.com.es/pgadmin`, configura Nginx para forzar la barra final y reenviar la ruta al servicio local:
+
+  ```nginx
+  location = /pgadmin { return 301 /pgadmin/; }
+
+  location /pgadmin/ {
+      proxy_pass         http://127.0.0.1:5050/;
+      proxy_set_header   Host $host;
+      proxy_set_header   X-Real-IP $remote_addr;
+      proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header   X-Forwarded-Proto https;
+      proxy_set_header   X-Script-Name /pgadmin;
+      proxy_http_version 1.1;
+      proxy_buffering    off;
+      proxy_redirect     off;
+  }
+  ```
+
+  Antes de recargar Nginx comprueba que pgAdmin responde directamente con `curl http://127.0.0.1:5050/login`.
+- Para registrar la base de datos del proyecto en pgAdmin, crea un nuevo servidor con los siguientes parámetros:
+  - **Name**: HorizonST (o el que prefieras)
+  - **Host**: `horixonst-db`
+  - **Port**: `5432`
+  - **Username**: `Horizonst_user`
+  - **Password**: `20025@BLELoRa`
 
 ## Credenciales iniciales
 

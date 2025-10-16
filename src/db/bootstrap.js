@@ -28,7 +28,7 @@ const resolveSchemaPath = () => {
   return fileURLToPath(defaultUrl);
 };
 
-const shouldApplySchema = (createdDatabase) => {
+const shouldApplySchema = (createdDatabase, missingCoreTables) => {
   const preference = (process.env.DB_BOOTSTRAP_SCHEMA || 'on-create').toLowerCase();
 
   if (preference === 'never' || preference === 'false') {
@@ -39,7 +39,35 @@ const shouldApplySchema = (createdDatabase) => {
     return true;
   }
 
-  return createdDatabase;
+  if (preference === 'on-missing') {
+    return missingCoreTables;
+  }
+
+  return createdDatabase || missingCoreTables;
+};
+
+const hasMissingCoreTables = async (connectionConfig) => {
+  const requiredTables = ['users', 'user_roles'];
+  const client = new Client(connectionConfig);
+
+  try {
+    await client.connect();
+    const { rows } = await client.query(
+      `SELECT COUNT(*)::INT AS present
+       FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND table_name = ANY($1)`,
+      [requiredTables]
+    );
+
+    const present = rows?.[0]?.present ?? 0;
+    return present < requiredTables.length;
+  } catch (error) {
+    console.warn('No se pudo comprobar el estado del esquema, se forzará su aplicación.', error);
+    return true;
+  } finally {
+    await client.end().catch(() => {});
+  }
 };
 
 export default async function bootstrapDatabase() {
@@ -93,7 +121,20 @@ export default async function bootstrapDatabase() {
 
     await client.query(`GRANT ALL PRIVILEGES ON DATABASE ${withIdentifier(targetDatabase)} TO ${withIdentifier(targetUser)}`);
 
-    if (shouldApplySchema(createdDatabase)) {
+    let missingCoreTables = createdDatabase;
+
+    if (!missingCoreTables) {
+      missingCoreTables = await hasMissingCoreTables({
+        host,
+        port,
+        user: rootUser,
+        password: rootPassword,
+        database: targetDatabase,
+        ssl
+      });
+    }
+
+    if (shouldApplySchema(createdDatabase, missingCoreTables)) {
       const schemaPath = resolveSchemaPath();
 
       try {
