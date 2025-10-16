@@ -108,6 +108,15 @@ Los volúmenes `emqx-data`, `emqx-log` y `emqx-config` quedan gestionados por Do
    docker compose up -d
    ```
 
+   Comprueba que los servicios están activos con:
+
+   ```bash
+   docker compose ps
+   ```
+
+   Deberías ver al menos los contenedores `horixonst-app`, `horixonst-db`,
+   `horixonst-mqtt` y `horixonst-pgadmin` en estado `running`.
+
 4. Para detener y eliminar los contenedores:
 
    ```bash
