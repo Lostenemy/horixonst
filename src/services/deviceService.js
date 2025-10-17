@@ -1,3 +1,4 @@
+import format from 'pg-format';
 import { query, getClient } from '../db/index.js';
 
 const DEDUP_WINDOW_MS = 5000;
@@ -40,25 +41,29 @@ const getSnapshot = async (deviceId, locationId) => {
 };
 
 const updateSnapshot = async (client, snapshotId, data) => {
-  const fields = [];
-  const values = [];
-  let idx = 1;
-  Object.entries(data).forEach(([key, value]) => {
-    fields.push(`${key} = $${idx}`);
-    values.push(value);
-    idx += 1;
-  });
+  const columns = Object.keys(data);
+  const values = Object.values(data);
+
+  const assignments = columns.map((column, index) => `${format('%I', column)} = $${index + 1}`);
+  const setClause = assignments.length ? `${assignments.join(', ')}, updated_at = NOW()` : 'updated_at = NOW()';
+
   values.push(snapshotId);
-  const setClause = fields.join(', ');
-  await client.query(`UPDATE device_state_snapshots SET ${setClause}, updated_at = NOW() WHERE id = $${idx}`, values);
+
+  await client.query(
+    `UPDATE device_state_snapshots SET ${setClause} WHERE id = $${assignments.length + 1}`,
+    values
+  );
 };
 
 const insertSnapshot = async (client, data) => {
-  const fields = Object.keys(data);
-  const placeholders = fields.map((_, index) => `$${index + 1}`);
+  const columns = Object.keys(data);
+  const placeholders = columns.map((_, index) => `$${index + 1}`);
   const values = Object.values(data);
+
+  const columnList = columns.map((column) => format('%I', column)).join(', ');
+
   const { rows } = await client.query(
-    `INSERT INTO device_state_snapshots (${fields.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
+    `INSERT INTO device_state_snapshots (${columnList}) VALUES (${placeholders.join(', ')}) RETURNING *`,
     values
   );
   return rows[0];
@@ -88,24 +93,28 @@ const shouldSkipBecauseRecentSameLocation = async (deviceId, locationId, now) =>
 };
 
 const updateReading = async (client, readingId, data) => {
-  const fields = [];
-  const values = [];
-  let idx = 1;
-  Object.entries(data).forEach(([key, value]) => {
-    fields.push(`${key} = $${idx}`);
-    values.push(value);
-    idx += 1;
-  });
+  const columns = Object.keys(data);
+  const values = Object.values(data);
+
+  const assignments = columns.map((column, index) => `${format('%I', column)} = $${index + 1}`);
+  const setClause = assignments.length ? `${assignments.join(', ')}, updated_at = NOW()` : 'updated_at = NOW()';
+
   values.push(readingId);
-  await client.query(`UPDATE device_readings SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $${idx}`, values);
+
+  await client.query(
+    `UPDATE device_readings SET ${setClause} WHERE id = $${assignments.length + 1}`,
+    values
+  );
 };
 
 const insertReading = async (client, data) => {
-  const fields = Object.keys(data);
-  const placeholders = fields.map((_, index) => `$${index + 1}`);
+  const columns = Object.keys(data);
+  const placeholders = columns.map((_, index) => `$${index + 1}`);
   const values = Object.values(data);
+  const columnList = columns.map((column) => format('%I', column)).join(', ');
+
   const { rows } = await client.query(
-    `INSERT INTO device_readings (${fields.join(', ')}) VALUES (${placeholders.join(', ')}) RETURNING *`,
+    `INSERT INTO device_readings (${columnList}) VALUES (${placeholders.join(', ')}) RETURNING *`,
     values
   );
   return rows[0];

@@ -53,7 +53,7 @@ const resolveString = (value) => {
 
 const DEFAULT_MQTT_USERNAME = 'mqtt';
 const DEFAULT_MQTT_PASSWORD = '20025@BLELoRa';
-const DEFAULT_MQTT_HOST = '127.0.0.1';
+const DEFAULT_MQTT_HOST = 'mqtt';
 const DEFAULT_MQTT_PORT = 1883;
 
 const sanitizeUrl = (urlInstance) => {

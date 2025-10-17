@@ -32,7 +32,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    DB_ROOT_USER=Horizonst_user
    DB_ROOT_PASSWORD=20025@BLELoRa
    DB_ROOT_DATABASE=postgres
-   MQTT_HOST=127.0.0.1
+   MQTT_HOST=mqtt
    MQTT_PORT=1883
    MQTT_USER=mqtt
    MQTT_PASS=20025@BLELoRa
@@ -43,7 +43,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
   > Para la conexión MQTT el cliente utiliza por defecto el protocolo 3.1.1 (versión `4`). Si tu broker requiere MQTT 5, ajusta `MQTT_PROTOCOL_VERSION=5`; en ese caso deja `MQTT_PROTOCOL_ID` vacío para que el cliente escoja automáticamente el identificador correcto. Si el servicio está publicado detrás de una ruta (por ejemplo `horizonst.com.es/emqx`), puedes indicarlo directamente en `MQTT_HOST` o definir una `MQTT_URL` completa como `wss://horizonst.com.es/emqx`.
   >
-  > Cuando el broker se ejecuta en la misma máquina que la aplicación basta con exponer el listener TCP en `127.0.0.1:1883`. En despliegues con Docker Compose, cambia `MQTT_HOST` a `mqtt` para reutilizar el contenedor incluido en la pila.
+  > Cuando todo se ejecuta en Docker Compose, el servicio `app` resuelve el broker con `MQTT_HOST=mqtt`. Si lanzas la aplicación directamente en tu máquina y el broker escucha en loopback, sustituye `MQTT_HOST` por `127.0.0.1`.
 
 ### Broker MQTT
 
