@@ -288,20 +288,20 @@ export const getDeviceHistory = async (deviceId, userId, role) => {
 };
 
 export const evaluateAlarms = async () => {
-  const { rows: alarms } = await query(
-    `SELECT a.*, ad.device_id
+  const selectAlarmsSql = `SELECT a.*, ad.device_id
      FROM alarms a
      JOIN alarm_devices ad ON ad.alarm_id = a.id
-     WHERE a.is_active = TRUE`
-  );
+     WHERE a.is_active = TRUE`;
+  console.debug('[evaluateAlarms] SQL>', selectAlarmsSql);
+  const { rows: alarms } = await query(selectAlarmsSql);
 
   const now = new Date();
 
   for (const alarm of alarms) {
-    const { rows: snapshots } = await query(
-      'SELECT * FROM device_state_snapshots WHERE device_id = $1 ORDER BY last_seen DESC LIMIT 1',
-      [alarm.device_id]
-    );
+    const selectSnapshotSql =
+      'SELECT * FROM device_state_snapshots WHERE device_id = $1 ORDER BY last_seen DESC LIMIT 1';
+    console.debug('[evaluateAlarms] SQL>', selectSnapshotSql, [alarm.device_id]);
+    const { rows: snapshots } = await query(selectSnapshotSql, [alarm.device_id]);
 
     const lastSeen = snapshots[0]?.last_seen ? new Date(snapshots[0].last_seen) : null;
 
@@ -311,12 +311,11 @@ export const evaluateAlarms = async () => {
 
     const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
     if (diffSeconds > alarm.threshold_seconds) {
-      await query(
-        `INSERT INTO alarm_events (alarm_id, device_id, status)
+      const insertEventSql = `INSERT INTO alarm_events (alarm_id, device_id, status)
          VALUES ($1, $2, 'triggered')
-         ON CONFLICT DO NOTHING`,
-        [alarm.id, alarm.device_id]
-      );
+         ON CONFLICT DO NOTHING`;
+      console.debug('[evaluateAlarms] SQL>', insertEventSql, [alarm.id, alarm.device_id]);
+      await query(insertEventSql, [alarm.id, alarm.device_id]);
     }
   }
 };

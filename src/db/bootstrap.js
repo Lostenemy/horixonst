@@ -3,18 +3,13 @@ import dotenv from 'dotenv';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import format from 'pg-format';
 
 dotenv.config();
 
 const { Client } = pkg;
 
 let bootstrapped = false;
-
-const quoteIdentifier = (value) => value.replace(/"/g, '""');
-
-const withIdentifier = (value) => `"${quoteIdentifier(value)}"`;
-
-const quoteLiteral = (value) => `'${value.replace(/'/g, "''")}'`;
 
 const resolveSchemaPath = () => {
   const configuredPath = process.env.DB_SCHEMA_PATH;
@@ -107,31 +102,35 @@ export default async function bootstrapDatabase() {
     const hasTargetPassword = typeof targetPassword === 'string' && targetPassword.length > 0;
 
     if (roleExists.rowCount === 0) {
-      if (hasTargetPassword) {
-        await client.query(
-          `CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD ${quoteLiteral(targetPassword)}`
-        );
-      } else {
-        await client.query(`CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN`);
-      }
+      const createRoleSql = hasTargetPassword
+        ? format('CREATE ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword)
+        : format('CREATE ROLE %I WITH LOGIN', targetUser);
+      console.debug('[bootstrap] SQL>', createRoleSql);
+      await client.query(createRoleSql);
       console.log(`Created database role ${targetUser}`);
     } else if (hasTargetPassword) {
-      await client.query(
-        `ALTER ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD ${quoteLiteral(targetPassword)}`
-      );
+      const alterRoleSql = format('ALTER ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword);
+      console.debug('[bootstrap] SQL>', alterRoleSql);
+      await client.query(alterRoleSql);
     }
 
     const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
 
     if (dbExists.rowCount === 0) {
-      await client.query(`CREATE DATABASE ${withIdentifier(targetDatabase)} OWNER ${withIdentifier(targetUser)}`);
+      const createDatabaseSql = format('CREATE DATABASE %I OWNER %I', targetDatabase, targetUser);
+      console.debug('[bootstrap] SQL>', createDatabaseSql);
+      await client.query(createDatabaseSql);
       console.log(`Created database ${targetDatabase}`);
       createdDatabase = true;
     } else {
-      await client.query(`ALTER DATABASE ${withIdentifier(targetDatabase)} OWNER TO ${withIdentifier(targetUser)}`);
+      const alterDatabaseSql = format('ALTER DATABASE %I OWNER TO %I', targetDatabase, targetUser);
+      console.debug('[bootstrap] SQL>', alterDatabaseSql);
+      await client.query(alterDatabaseSql);
     }
 
-    await client.query(`GRANT ALL PRIVILEGES ON DATABASE ${withIdentifier(targetDatabase)} TO ${withIdentifier(targetUser)}`);
+    const grantSql = format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', targetDatabase, targetUser);
+    console.debug('[bootstrap] SQL>', grantSql);
+    await client.query(grantSql);
 
     let missingCoreTables = createdDatabase;
 
