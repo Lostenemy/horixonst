@@ -17,7 +17,8 @@
     "express-validator": "^7.2.1",
     "jsonwebtoken": "^9.0.2",
     "mqtt": "^5.3.2",
-    "pg": "^8.11.5"
+    "pg": "^8.11.5",
+    "pg-format": "^1.0.4"
   },
   "devDependencies": {
     "nodemon": "^3.1.4"

@@ -148,5 +148,5 @@ ON CONFLICT DO NOTHING;
 
 -- Create an initial administrator (password: admin1234)
 INSERT INTO users (username, password_hash, role_id)
-SELECT 'admin', '$2b$10$8jEafgAvFp8ZUBKbjrKMjO0Up4Wr9PXgC7cmkQCLOwBEmc6kAMPx6', id FROM user_roles WHERE name = 'admin'
+SELECT 'admin', '$2a$10$73fMy2e28P.aexLrnxMe2uWefWMdrL/K253/vRFIdpUdBMn/mYt5i', id FROM user_roles WHERE name = 'admin'
 ON CONFLICT (username) DO NOTHING;

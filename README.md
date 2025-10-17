@@ -32,20 +32,23 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    DB_ROOT_USER=Horizonst_user
    DB_ROOT_PASSWORD=20025@BLELoRa
    DB_ROOT_DATABASE=postgres
-   MQTT_HOST=horizonst.com.es
+   MQTT_HOST=mqtt
    MQTT_PORT=1883
-   MQTT_USER=mqtt@user
+   MQTT_USER=mqtt
    MQTT_PASS=20025@BLELoRa
+   MQTT_URL=
    ```
 
    > El servidor verifica en cada arranque que existan la base de datos y el rol configurados. Para ello utiliza `DB_ROOT_USER`, `DB_ROOT_PASSWORD` y `DB_ROOT_DATABASE`. Asegúrate de que estas credenciales tengan privilegios de creación cuando el despliegue sea contra una instancia nueva.
 
-   > Para la conexión MQTT el cliente utiliza por defecto el protocolo 3.1.1 (versión `4`). Si tu broker requiere MQTT 5, ajusta `MQTT_PROTOCOL_VERSION=5`; en ese caso deja `MQTT_PROTOCOL_ID` vacío para que el cliente escoja automáticamente el identificador correcto.
+  > Para la conexión MQTT el cliente utiliza por defecto el protocolo 3.1.1 (versión `4`). Si tu broker requiere MQTT 5, ajusta `MQTT_PROTOCOL_VERSION=5`; en ese caso deja `MQTT_PROTOCOL_ID` vacío para que el cliente escoja automáticamente el identificador correcto. Si el servicio está publicado detrás de una ruta (por ejemplo `horizonst.com.es/emqx`), puedes indicarlo directamente en `MQTT_HOST` o definir una `MQTT_URL` completa como `wss://horizonst.com.es/emqx`.
+  >
+  > Cuando todo se ejecuta en Docker Compose, el servicio `app` resuelve el broker con `MQTT_HOST=mqtt`. Si lanzas la aplicación directamente en tu máquina y el broker escucha en loopback, sustituye `MQTT_HOST` por `127.0.0.1`.
 
 ### Broker MQTT
 
 - **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` que monta volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`) para conservar datos, registros y configuración sin depender de carpetas del repositorio. Todos los puertos (`1883`, `8883`, `8083`, `8084`, `18083`) se publican en la interfaz de loopback (`127.0.0.1`) para que un proxy inverso como Nginx gestione el acceso exterior. El listener HTTP del panel queda disponible en `http://127.0.0.1:18083` con las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
-- **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt@user` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
+- **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` (o declara una `MQTT_URL` completa) en tu `.env` para apuntar a ese servidor, incluyendo rutas adicionales si tu balanceador las requiere.
 
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
 
@@ -92,7 +95,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 - **horixonst-mqtt**: broker EMQX con persistencia gestionada mediante volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`), accesible desde los puertos publicados en loopback (`127.0.0.1:1883`, `127.0.0.1:8883`, `127.0.0.1:8083`, `127.0.0.1:8084`, `127.0.0.1:18083`). El panel de administración sirve HTTP en `http://127.0.0.1:18083` y se espera que un proxy inverso externo gestione TLS si es necesario.
 - **horixonst-db**: instancia de PostgreSQL con el esquema de `sql/schema.sql` cargado automáticamente.
 - **horixonst-pgadmin**: consola web pgAdmin 4 disponible en `http://127.0.0.1:${PGADMIN_PORT:-5050}/pgadmin/`. Inicia sesión con el correo y contraseña definidos en `PGADMIN_DEFAULT_EMAIL` y `PGADMIN_DEFAULT_PASSWORD`. El contenedor carga automáticamente `pgadmin/servers.json`, que ya registra la base de datos `Horizonst` apuntando al host `horixonst-db` con el usuario `Horizonst_user`.
-- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://127.0.0.1:8080` y conectado al broker MQTT interno (host `mqtt`).
+- **horixonst-app**: servidor Node.js sirviendo el portal web en `http://127.0.0.1:8080` y conectado al broker MQTT interno (host `mqtt` cuando se usa Docker Compose, `127.0.0.1` en instalaciones directas).
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
 
@@ -157,7 +160,8 @@ estableciendo esas variables antes de arrancar la aplicación:
 
 ```bash
 DB_HOST=mi-db-personal
-MQTT_HOST=mi-broker
+MQTT_HOST=mi-broker/mi-ruta
+# MQTT_URL=wss://mi-broker/mi-ruta
 docker compose -f docker-compose.app.yml up -d
 ```
 

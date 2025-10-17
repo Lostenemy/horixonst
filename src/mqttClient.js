@@ -42,10 +42,73 @@ const stringPayload = (payload) => {
   return JSON.stringify(payload);
 };
 
+const resolveString = (value) => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const DEFAULT_MQTT_USERNAME = 'mqtt';
+const DEFAULT_MQTT_PASSWORD = '20025@BLELoRa';
+const DEFAULT_MQTT_HOST = 'mqtt';
+const DEFAULT_MQTT_PORT = 1883;
+
+const sanitizeUrl = (urlInstance) => {
+  if (urlInstance.pathname === '/' && !urlInstance.search && !urlInstance.hash) {
+    urlInstance.pathname = '';
+  }
+  return urlInstance.toString();
+};
+
+const buildBrokerUrl = (port) => {
+  const configuredUrl = resolveString(process.env.MQTT_URL);
+  const rawHost = resolveString(process.env.MQTT_HOST) || DEFAULT_MQTT_HOST;
+  const scheme = 'mqtt';
+
+  if (configuredUrl) {
+    try {
+      const parsed = new URL(configuredUrl);
+      if (Number.isFinite(port) && port > 0) {
+        parsed.port = String(port);
+      } else if (!parsed.port) {
+        parsed.port = String(DEFAULT_MQTT_PORT);
+      }
+      return sanitizeUrl(parsed);
+    } catch (err) {
+      console.warn('MQTT_URL inválida, se intentará usar MQTT_HOST en su lugar', err);
+    }
+  }
+
+  try {
+    const prefix = rawHost.includes('://') ? '' : `${scheme}://`;
+    const parsed = new URL(`${prefix}${rawHost}`);
+    if (Number.isFinite(port) && port > 0) {
+      parsed.port = String(port);
+    } else if (!parsed.port) {
+      parsed.port = String(DEFAULT_MQTT_PORT);
+    }
+    if (!parsed.protocol) {
+      parsed.protocol = `${scheme}:`;
+    }
+    return sanitizeUrl(parsed);
+  } catch (err) {
+    const sanitizedHost = rawHost.replace(/\/$/, '');
+    const finalPort = Number.isFinite(port) && port > 0 ? port : DEFAULT_MQTT_PORT;
+    return `${scheme}://${sanitizedHost}:${finalPort}`;
+  }
+};
+
 export const createMqttClient = () => {
-  const host = process.env.MQTT_HOST || 'horizonst.com.es';
-  const port = Number(process.env.MQTT_PORT || 1883);
+  const configuredPort = Number(process.env.MQTT_PORT);
+  const port = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : DEFAULT_MQTT_PORT;
   const clientId = buildClientId();
+  const usernameEnvDefined = Object.prototype.hasOwnProperty.call(process.env, 'MQTT_USER');
+  const passwordEnvDefined = Object.prototype.hasOwnProperty.call(process.env, 'MQTT_PASS');
+  const envUsername = resolveString(process.env.MQTT_USER);
+  const envPassword = resolveString(process.env.MQTT_PASS);
 
   const rawProtocolVersion = Number(process.env.MQTT_PROTOCOL_VERSION || 4);
   const protocolVersion = Number.isFinite(rawProtocolVersion) && rawProtocolVersion > 0 ? rawProtocolVersion : 4;
@@ -56,10 +119,26 @@ export const createMqttClient = () => {
       ? 'MQIsdp'
       : 'MQTT';
 
+  let username = usernameEnvDefined ? envUsername : DEFAULT_MQTT_USERNAME;
+  let password;
+
+  if (passwordEnvDefined) {
+    password = envPassword;
+  } else if (usernameEnvDefined && !envUsername) {
+    password = undefined;
+  } else {
+    password = DEFAULT_MQTT_PASSWORD;
+  }
+
+  if (!username) {
+    username = undefined;
+    password = undefined;
+  } else if (!password) {
+    password = undefined;
+  }
+
   const options = {
     clientId,
-    username: process.env.MQTT_USER,
-    password: process.env.MQTT_PASS,
     keepalive: Number(process.env.MQTT_KEEPALIVE || 60),
     reconnectPeriod: Number(process.env.MQTT_RECONNECT_PERIOD || 1000),
     protocolId,
@@ -69,7 +148,15 @@ export const createMqttClient = () => {
     encoding: process.env.MQTT_ENCODING || 'utf8'
   };
 
-  const brokerUrl = `mqtt://${host}:${port}`;
+  if (username) {
+    options.username = username;
+  }
+
+  if (password && username) {
+    options.password = password;
+  }
+
+  const brokerUrl = buildBrokerUrl(port);
   const client = mqtt.connect(brokerUrl, options);
 
   client.on('connect', () => {
