@@ -32,9 +32,9 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
    DB_ROOT_USER=Horizonst_user
    DB_ROOT_PASSWORD=20025@BLELoRa
    DB_ROOT_DATABASE=postgres
-   MQTT_HOST=horizonst.com.es
+   MQTT_HOST=mqtt
    MQTT_PORT=1883
-   MQTT_USER=mqtt@user
+   MQTT_USER=mqtt
    MQTT_PASS=20025@BLELoRa
    ```
 
@@ -45,7 +45,7 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 ### Broker MQTT
 
 - **Con Docker Compose**: el archivo `docker-compose.yml` incluye un servicio `mqtt` basado en `emqx/emqx:5.8.0` que monta volúmenes nombrados (`emqx-data`, `emqx-log`, `emqx-config`) para conservar datos, registros y configuración sin depender de carpetas del repositorio. Todos los puertos (`1883`, `8883`, `8083`, `8084`, `18083`) se publican en la interfaz de loopback (`127.0.0.1`) para que un proxy inverso como Nginx gestione el acceso exterior. El listener HTTP del panel queda disponible en `http://127.0.0.1:18083` con las credenciales del dashboard (`mqtt` / `20025@BLELoRa`).
-- **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt@user` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
+- **Sin Docker Compose**: si prefieres utilizar un broker externo, replica la configuración anterior y asegúrate de registrar el usuario `mqtt` con la contraseña indicada, además de habilitar el listener TCP en el puerto que hayas definido. Ajusta `MQTT_HOST` y `MQTT_PORT` en tu `.env` para apuntar a ese servidor.
 
 2. (Opcional si el paso anterior ya tenía permisos de creación) Crear la base de datos y ejecutar el script de esquema manualmente:
 

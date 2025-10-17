@@ -42,10 +42,27 @@ const stringPayload = (payload) => {
   return JSON.stringify(payload);
 };
 
+const resolveString = (value) => {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
+
+const DEFAULT_MQTT_USERNAME = 'mqtt';
+const DEFAULT_MQTT_PASSWORD = '20025@BLELoRa';
+
 export const createMqttClient = () => {
-  const host = process.env.MQTT_HOST || 'horizonst.com.es';
-  const port = Number(process.env.MQTT_PORT || 1883);
+  const host = resolveString(process.env.MQTT_HOST) || 'mqtt';
+  const configuredPort = Number(process.env.MQTT_PORT);
+  const port = Number.isFinite(configuredPort) && configuredPort > 0 ? configuredPort : 1883;
   const clientId = buildClientId();
+  const usernameEnvDefined = Object.prototype.hasOwnProperty.call(process.env, 'MQTT_USER');
+  const passwordEnvDefined = Object.prototype.hasOwnProperty.call(process.env, 'MQTT_PASS');
+  const envUsername = resolveString(process.env.MQTT_USER);
+  const envPassword = resolveString(process.env.MQTT_PASS);
 
   const rawProtocolVersion = Number(process.env.MQTT_PROTOCOL_VERSION || 4);
   const protocolVersion = Number.isFinite(rawProtocolVersion) && rawProtocolVersion > 0 ? rawProtocolVersion : 4;
@@ -58,8 +75,8 @@ export const createMqttClient = () => {
 
   const options = {
     clientId,
-    username: process.env.MQTT_USER,
-    password: process.env.MQTT_PASS,
+    username: usernameEnvDefined ? envUsername : DEFAULT_MQTT_USERNAME,
+    password: passwordEnvDefined ? envPassword : DEFAULT_MQTT_PASSWORD,
     keepalive: Number(process.env.MQTT_KEEPALIVE || 60),
     reconnectPeriod: Number(process.env.MQTT_RECONNECT_PERIOD || 1000),
     protocolId,
@@ -68,6 +85,14 @@ export const createMqttClient = () => {
     connectTimeout: Number(process.env.MQTT_CONNECT_TIMEOUT || 10000),
     encoding: process.env.MQTT_ENCODING || 'utf8'
   };
+
+  if (!options.username) {
+    delete options.username;
+  }
+
+  if (!options.password) {
+    delete options.password;
+  }
 
   const brokerUrl = `mqtt://${host}:${port}`;
   const client = mqtt.connect(brokerUrl, options);

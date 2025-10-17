@@ -102,11 +102,23 @@ export default async function bootstrapDatabase() {
 
     const roleExists = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [targetUser]);
 
+    const hasTargetPassword = typeof targetPassword === 'string' && targetPassword.length > 0;
+
     if (roleExists.rowCount === 0) {
-      await client.query(`CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`, [targetPassword]);
+      if (hasTargetPassword) {
+        await client.query({
+          text: `CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`,
+          values: [targetPassword]
+        });
+      } else {
+        await client.query(`CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN`);
+      }
       console.log(`Created database role ${targetUser}`);
-    } else if (targetPassword) {
-      await client.query(`ALTER ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`, [targetPassword]);
+    } else if (hasTargetPassword) {
+      await client.query({
+        text: `ALTER ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`,
+        values: [targetPassword]
+      });
     }
 
     const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
