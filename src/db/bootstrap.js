@@ -14,6 +14,8 @@ const quoteIdentifier = (value) => value.replace(/"/g, '""');
 
 const withIdentifier = (value) => `"${quoteIdentifier(value)}"`;
 
+const quoteLiteral = (value) => `'${value.replace(/'/g, "''")}'`;
+
 const resolveSchemaPath = () => {
   const configuredPath = process.env.DB_SCHEMA_PATH;
 
@@ -106,19 +108,17 @@ export default async function bootstrapDatabase() {
 
     if (roleExists.rowCount === 0) {
       if (hasTargetPassword) {
-        await client.query({
-          text: `CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`,
-          values: [targetPassword]
-        });
+        await client.query(
+          `CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD ${quoteLiteral(targetPassword)}`
+        );
       } else {
         await client.query(`CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN`);
       }
       console.log(`Created database role ${targetUser}`);
     } else if (hasTargetPassword) {
-      await client.query({
-        text: `ALTER ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`,
-        values: [targetPassword]
-      });
+      await client.query(
+        `ALTER ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD ${quoteLiteral(targetPassword)}`
+      );
     }
 
     const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);

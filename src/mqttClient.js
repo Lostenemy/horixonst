@@ -53,7 +53,7 @@ const resolveString = (value) => {
 
 const DEFAULT_MQTT_USERNAME = 'mqtt';
 const DEFAULT_MQTT_PASSWORD = '20025@BLELoRa';
-const DEFAULT_MQTT_HOST = 'mqtt';
+const DEFAULT_MQTT_HOST = '127.0.0.1';
 const DEFAULT_MQTT_PORT = 1883;
 
 const sanitizeUrl = (urlInstance) => {
@@ -119,10 +119,26 @@ export const createMqttClient = () => {
       ? 'MQIsdp'
       : 'MQTT';
 
+  let username = usernameEnvDefined ? envUsername : DEFAULT_MQTT_USERNAME;
+  let password;
+
+  if (passwordEnvDefined) {
+    password = envPassword;
+  } else if (usernameEnvDefined && !envUsername) {
+    password = undefined;
+  } else {
+    password = DEFAULT_MQTT_PASSWORD;
+  }
+
+  if (!username) {
+    username = undefined;
+    password = undefined;
+  } else if (!password) {
+    password = undefined;
+  }
+
   const options = {
     clientId,
-    username: usernameEnvDefined ? envUsername : DEFAULT_MQTT_USERNAME,
-    password: passwordEnvDefined ? envPassword : DEFAULT_MQTT_PASSWORD,
     keepalive: Number(process.env.MQTT_KEEPALIVE || 60),
     reconnectPeriod: Number(process.env.MQTT_RECONNECT_PERIOD || 1000),
     protocolId,
@@ -132,11 +148,12 @@ export const createMqttClient = () => {
     encoding: process.env.MQTT_ENCODING || 'utf8'
   };
 
-  if (!options.username) {
-    delete options.username;
-    delete options.password;
-  } else if (!options.password) {
-    delete options.password;
+  if (username) {
+    options.username = username;
+  }
+
+  if (password && username) {
+    options.password = password;
   }
 
   const brokerUrl = buildBrokerUrl(port);
