@@ -134,9 +134,8 @@ export const createMqttClient = () => {
 
   if (!options.username) {
     delete options.username;
-  }
-
-  if (!options.password) {
+    delete options.password;
+  } else if (!options.password) {
     delete options.password;
   }
 
