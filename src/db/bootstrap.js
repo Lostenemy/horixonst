@@ -45,17 +45,22 @@ const shouldApplySchema = (createdDatabase, missingCoreTables) => {
 
 const hasMissingCoreTables = async (connectionConfig) => {
   const requiredTables = ['users', 'user_roles'];
+
+  if (requiredTables.length === 0) {
+    return false;
+  }
+
+  const tableList = requiredTables.map((table) => format('%L', table)).join(', ');
+  const missingTablesSql = `
+    SELECT COUNT(*)::INT AS present
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_name IN (${tableList})`;
   const client = new Client(connectionConfig);
 
   try {
     await client.connect();
-    const { rows } = await client.query(
-      `SELECT COUNT(*)::INT AS present
-       FROM information_schema.tables
-       WHERE table_schema = 'public'
-         AND table_name = ANY($1)`,
-      [requiredTables]
-    );
+    const { rows } = await client.query(missingTablesSql);
 
     const present = rows?.[0]?.present ?? 0;
     return present < requiredTables.length;

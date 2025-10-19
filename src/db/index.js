@@ -39,7 +39,17 @@ const ensurePool = () => {
 
 export const query = async (text, params) => {
   const pool = await ensurePool();
-  return pool.query(text, params);
+  try {
+    return await pool.query(text, params);
+  } catch (error) {
+    console.error('Error al ejecutar consulta SQL', {
+      sql: text,
+      params,
+      position: error?.position,
+      code: error?.code
+    });
+    throw error;
+  }
 };
 
 export const getClient = async () => {
