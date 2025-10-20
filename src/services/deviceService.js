@@ -298,13 +298,10 @@ export const evaluateAlarms = async () => {
   const now = new Date();
 
   for (const alarm of alarms) {
-    const selectSnapshotSql = format(
-      'SELECT * FROM %I WHERE device_id = %L ORDER BY last_seen DESC LIMIT 1',
-      'device_state_snapshots',
-      alarm.device_id
-    );
-    console.debug('[evaluateAlarms] SQL>', selectSnapshotSql);
-    const { rows: snapshots } = await query(selectSnapshotSql);
+    const selectSnapshotSql =
+      'SELECT * FROM device_state_snapshots WHERE device_id = $1 ORDER BY last_seen DESC LIMIT 1';
+    console.debug('[evaluateAlarms] SQL>', selectSnapshotSql, [alarm.device_id]);
+    const { rows: snapshots } = await query(selectSnapshotSql, [alarm.device_id]);
 
     const lastSeen = snapshots[0]?.last_seen ? new Date(snapshots[0].last_seen) : null;
 
@@ -314,14 +311,11 @@ export const evaluateAlarms = async () => {
 
     const diffSeconds = (now.getTime() - lastSeen.getTime()) / 1000;
     if (diffSeconds > alarm.threshold_seconds) {
-      const insertEventSql = format(
-        "INSERT INTO %I (alarm_id, device_id, status) VALUES (%L, %L, 'triggered') ON CONFLICT DO NOTHING",
-        'alarm_events',
-        alarm.id,
-        alarm.device_id
-      );
-      console.debug('[evaluateAlarms] SQL>', insertEventSql);
-      await query(insertEventSql);
+      const insertEventSql =
+        'INSERT INTO alarm_events (alarm_id, device_id, status) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING';
+      const params = [alarm.id, alarm.device_id, 'triggered'];
+      console.debug('[evaluateAlarms] SQL>', insertEventSql, params);
+      await query(insertEventSql, params);
     }
   }
 };
