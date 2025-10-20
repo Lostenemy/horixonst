@@ -43,7 +43,7 @@ const shouldApplySchema = (createdDatabase, missingCoreTables) => {
   return createdDatabase || missingCoreTables;
 };
 
-const shouldLogSql = (() => {
+const shouldLogSql = () => {
   const flag = process.env.DEBUG_BOOTSTRAP;
 
   if (flag === undefined) {
@@ -52,16 +52,16 @@ const shouldLogSql = (() => {
 
   const normalized = flag.trim().toLowerCase();
   return !['false', '0', 'no', 'off'].includes(normalized);
-})();
+};
 
 const logSql = (sql, params) => {
-  if (!shouldLogSql) {
+  if (!shouldLogSql()) {
     return;
   }
 
-  const serializedParams = params ? JSON.stringify(params) : '[]';
-  process.stdout.write(`[#bootstrap] SQL> ${sql}\n`);
-  process.stdout.write(`[#bootstrap] params> ${serializedParams}\n`);
+  const serializedParams = params !== undefined ? JSON.stringify(params) : '[]';
+  console.log(`[#bootstrap] SQL> ${sql}`);
+  console.log(`[#bootstrap] params> ${serializedParams}`);
 };
 
 const execute = async (client, sql, params) => {
@@ -76,7 +76,7 @@ const execute = async (client, sql, params) => {
       position: error?.position,
       code: error?.code
     };
-    process.stderr.write(`[#bootstrap] Error al ejecutar SQL ${JSON.stringify(payload)}\n`);
+    console.error('[#bootstrap] Error al ejecutar SQL', payload);
     throw error;
   }
 };
@@ -300,6 +300,10 @@ export default async function bootstrapDatabase() {
             for (let idx = 0; idx < statements.length; idx += 1) {
               const statement = statements[idx];
 
+              if (shouldLogSql()) {
+                console.log(`[#bootstrap] ejecutando sentencia #${idx + 1}/${statements.length}`);
+              }
+
               try {
                 await execute(schemaClient, statement);
               } catch (error) {
@@ -307,14 +311,14 @@ export default async function bootstrapDatabase() {
                   code: error?.code,
                   position: error?.position
                 };
-                process.stderr.write(`[#bootstrap] Falló la sentencia #${idx + 1} ${JSON.stringify(info)}\n`);
+                console.error(`[#bootstrap] Falló la sentencia #${idx + 1}`, info);
 
                 if (error?.position) {
                   const position = Number(error.position);
                   const preview = statement.slice(Math.max(0, position - 80), position + 80);
-                  process.stderr.write(`[#bootstrap] preview cerca de la posición ${position}\n${preview}\n`);
+                  console.error(`[#bootstrap] preview cerca de la posición ${position}\n${preview}`);
                 } else {
-                  process.stderr.write(`[#bootstrap] sentencia completa que falló:\n${statement}\n`);
+                  console.error(`[#bootstrap] sentencia completa que falló:\n${statement}`);
                 }
 
                 throw error;
