@@ -69,6 +69,93 @@ const execute = async (client, sql, params) => {
   }
 };
 
+function splitSqlStatements(sql) {
+  const stmts = [];
+  let i = 0;
+  let start = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let dollarTag = null;
+
+  while (i < sql.length) {
+    const c = sql[i];
+    const n = sql[i + 1];
+
+    if (!inSingle && !inDouble && !dollarTag && !inBlockComment && c === '-' && n === '-' && !inLineComment) {
+      inLineComment = true;
+      i += 2;
+      continue;
+    }
+    if (inLineComment && c === '\n') {
+      inLineComment = false;
+      i++;
+      continue;
+    }
+    if (!inSingle && !inDouble && !dollarTag && !inLineComment && c === '/' && n === '*') {
+      inBlockComment = true;
+      i += 2;
+      continue;
+    }
+    if (inBlockComment && c === '*' && n === '/') {
+      inBlockComment = false;
+      i += 2;
+      continue;
+    }
+    if (inLineComment || inBlockComment) {
+      i++;
+      continue;
+    }
+
+    if (!dollarTag && !inDouble && c === '\'') {
+      inSingle = !inSingle;
+      i++;
+      continue;
+    }
+    if (!dollarTag && !inSingle && c === '"') {
+      inDouble = !inDouble;
+      i++;
+      continue;
+    }
+
+    if (!inSingle && !inDouble) {
+      if (!dollarTag && c === '$') {
+        const match = sql.slice(i).match(/^\$([A-Za-z0-9_]*)\$/);
+        if (match) {
+          dollarTag = match[1];
+          i += match[0].length;
+          continue;
+        }
+      } else if (dollarTag && c === '$') {
+        const match = sql.slice(i).match(/^\$([A-Za-z0-9_]*)\$/);
+        if (match && match[1] === dollarTag) {
+          dollarTag = null;
+          i += match[0].length;
+          continue;
+        }
+      }
+    }
+
+    if (!inSingle && !inDouble && !dollarTag && c === ';') {
+      const chunk = sql.slice(start, i).trim();
+      if (chunk) {
+        stmts.push(chunk);
+      }
+      start = i + 1;
+    }
+
+    i++;
+  }
+
+  const tail = sql.slice(start).trim();
+  if (tail) {
+    stmts.push(tail);
+  }
+
+  return stmts;
+}
+
 const hasMissingCoreTables = async (connectionConfig) => {
   const requiredTables = ['users', 'user_roles'];
 
@@ -196,8 +283,32 @@ export default async function bootstrapDatabase() {
 
           try {
             await schemaClient.connect();
-            await execute(schemaClient, schemaSql);
-            console.log(`Applied schema from ${schemaPath}`);
+            const statements = splitSqlStatements(schemaSql);
+
+            for (let idx = 0; idx < statements.length; idx += 1) {
+              const statement = statements[idx];
+
+              try {
+                await execute(schemaClient, statement);
+              } catch (error) {
+                console.error(`[bootstrap] Falló la sentencia #${idx + 1}`, {
+                  code: error?.code,
+                  position: error?.position
+                });
+
+                if (error?.position) {
+                  const position = Number(error.position);
+                  const preview = statement.slice(Math.max(0, position - 80), position + 80);
+                  console.error('[bootstrap] preview cerca de la posición', position, '\n', preview);
+                } else {
+                  console.error('[bootstrap] sentencia completa que falló:\n', statement);
+                }
+
+                throw error;
+              }
+            }
+
+            console.log(`Applied schema from ${schemaPath} en ${statements.length} sentencias`);
           } finally {
             await schemaClient.end().catch(() => {});
           }
