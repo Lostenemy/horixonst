@@ -43,6 +43,14 @@ const shouldApplySchema = (createdDatabase, missingCoreTables) => {
   return createdDatabase || missingCoreTables;
 };
 
+const logSql = (sql, params) => {
+  if (process.env.DEBUG_BOOTSTRAP === 'false') {
+    return;
+  }
+
+  console.debug('[bootstrap] SQL>', sql, params ?? []);
+};
+
 const hasMissingCoreTables = async (connectionConfig) => {
   const requiredTables = ['users', 'user_roles'];
 
@@ -50,16 +58,18 @@ const hasMissingCoreTables = async (connectionConfig) => {
     return false;
   }
 
+  const tablesList = requiredTables.map((table) => format.literal(table)).join(', ');
   const missingTablesSql = `
     SELECT COUNT(*)::INT AS present
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name = ANY($1::text[])`;
+      AND table_name IN (${tablesList})`;
   const client = new Client(connectionConfig);
 
   try {
     await client.connect();
-    const { rows } = await client.query(missingTablesSql, [requiredTables]);
+    logSql(missingTablesSql);
+    const { rows } = await client.query(missingTablesSql);
 
     const present = rows?.[0]?.present ?? 0;
     return present < requiredTables.length;
@@ -101,6 +111,7 @@ export default async function bootstrapDatabase() {
   try {
     await client.connect();
 
+    logSql('SELECT 1 FROM pg_roles WHERE rolname = $1', [targetUser]);
     const roleExists = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [targetUser]);
 
     const hasTargetPassword = typeof targetPassword === 'string' && targetPassword.length > 0;
@@ -109,31 +120,32 @@ export default async function bootstrapDatabase() {
       const createRoleSql = hasTargetPassword
         ? format('CREATE ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword)
         : format('CREATE ROLE %I WITH LOGIN', targetUser);
-      console.debug('[bootstrap] SQL>', createRoleSql);
+      logSql(createRoleSql);
       await client.query(createRoleSql);
       console.log(`Created database role ${targetUser}`);
     } else if (hasTargetPassword) {
       const alterRoleSql = format('ALTER ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword);
-      console.debug('[bootstrap] SQL>', alterRoleSql);
+      logSql(alterRoleSql);
       await client.query(alterRoleSql);
     }
 
+    logSql('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
     const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
 
     if (dbExists.rowCount === 0) {
       const createDatabaseSql = format('CREATE DATABASE %I OWNER %I', targetDatabase, targetUser);
-      console.debug('[bootstrap] SQL>', createDatabaseSql);
+      logSql(createDatabaseSql);
       await client.query(createDatabaseSql);
       console.log(`Created database ${targetDatabase}`);
       createdDatabase = true;
     } else {
       const alterDatabaseSql = format('ALTER DATABASE %I OWNER TO %I', targetDatabase, targetUser);
-      console.debug('[bootstrap] SQL>', alterDatabaseSql);
+      logSql(alterDatabaseSql);
       await client.query(alterDatabaseSql);
     }
 
     const grantSql = format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', targetDatabase, targetUser);
-    console.debug('[bootstrap] SQL>', grantSql);
+    logSql(grantSql);
     await client.query(grantSql);
 
     let missingCoreTables = createdDatabase;
@@ -167,6 +179,7 @@ export default async function bootstrapDatabase() {
 
           try {
             await schemaClient.connect();
+            logSql(schemaSql);
             await schemaClient.query(schemaSql);
             console.log(`Applied schema from ${schemaPath}`);
           } finally {
