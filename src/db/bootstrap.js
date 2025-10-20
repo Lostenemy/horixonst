@@ -43,12 +43,30 @@ const shouldApplySchema = (createdDatabase, missingCoreTables) => {
   return createdDatabase || missingCoreTables;
 };
 
+const shouldLogSql = process.env.DEBUG_BOOTSTRAP !== 'false';
+
 const logSql = (sql, params) => {
-  if (process.env.DEBUG_BOOTSTRAP === 'false') {
+  if (!shouldLogSql) {
     return;
   }
 
-  console.debug('[bootstrap] SQL>', sql, params ?? []);
+  console.info('[bootstrap] SQL>', sql, params ?? []);
+};
+
+const execute = async (client, sql, params) => {
+  logSql(sql, params);
+
+  try {
+    return await client.query(sql, params);
+  } catch (error) {
+    console.error('[bootstrap] Error al ejecutar SQL', {
+      sql,
+      params,
+      position: error?.position,
+      code: error?.code
+    });
+    throw error;
+  }
 };
 
 const hasMissingCoreTables = async (connectionConfig) => {
@@ -58,18 +76,16 @@ const hasMissingCoreTables = async (connectionConfig) => {
     return false;
   }
 
-  const tablesList = requiredTables.map((table) => format.literal(table)).join(', ');
   const missingTablesSql = `
     SELECT COUNT(*)::INT AS present
     FROM information_schema.tables
-    WHERE table_schema = 'public'
-      AND table_name IN (${tablesList})`;
+    WHERE table_schema = $1
+      AND table_name = ANY($2::text[])`;
   const client = new Client(connectionConfig);
 
   try {
     await client.connect();
-    logSql(missingTablesSql);
-    const { rows } = await client.query(missingTablesSql);
+    const { rows } = await execute(client, missingTablesSql, ['public', requiredTables]);
 
     const present = rows?.[0]?.present ?? 0;
     return present < requiredTables.length;
@@ -111,8 +127,11 @@ export default async function bootstrapDatabase() {
   try {
     await client.connect();
 
-    logSql('SELECT 1 FROM pg_roles WHERE rolname = $1', [targetUser]);
-    const roleExists = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [targetUser]);
+    const roleExists = await execute(
+      client,
+      'SELECT 1 FROM pg_roles WHERE rolname = $1',
+      [targetUser]
+    );
 
     const hasTargetPassword = typeof targetPassword === 'string' && targetPassword.length > 0;
 
@@ -120,33 +139,31 @@ export default async function bootstrapDatabase() {
       const createRoleSql = hasTargetPassword
         ? format('CREATE ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword)
         : format('CREATE ROLE %I WITH LOGIN', targetUser);
-      logSql(createRoleSql);
-      await client.query(createRoleSql);
+      await execute(client, createRoleSql);
       console.log(`Created database role ${targetUser}`);
     } else if (hasTargetPassword) {
       const alterRoleSql = format('ALTER ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword);
-      logSql(alterRoleSql);
-      await client.query(alterRoleSql);
+      await execute(client, alterRoleSql);
     }
 
-    logSql('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
-    const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
+    const dbExists = await execute(
+      client,
+      'SELECT 1 FROM pg_database WHERE datname = $1',
+      [targetDatabase]
+    );
 
     if (dbExists.rowCount === 0) {
       const createDatabaseSql = format('CREATE DATABASE %I OWNER %I', targetDatabase, targetUser);
-      logSql(createDatabaseSql);
-      await client.query(createDatabaseSql);
+      await execute(client, createDatabaseSql);
       console.log(`Created database ${targetDatabase}`);
       createdDatabase = true;
     } else {
       const alterDatabaseSql = format('ALTER DATABASE %I OWNER TO %I', targetDatabase, targetUser);
-      logSql(alterDatabaseSql);
-      await client.query(alterDatabaseSql);
+      await execute(client, alterDatabaseSql);
     }
 
     const grantSql = format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', targetDatabase, targetUser);
-    logSql(grantSql);
-    await client.query(grantSql);
+    await execute(client, grantSql);
 
     let missingCoreTables = createdDatabase;
 
@@ -179,8 +196,7 @@ export default async function bootstrapDatabase() {
 
           try {
             await schemaClient.connect();
-            logSql(schemaSql);
-            await schemaClient.query(schemaSql);
+            await execute(schemaClient, schemaSql);
             console.log(`Applied schema from ${schemaPath}`);
           } finally {
             await schemaClient.end().catch(() => {});
