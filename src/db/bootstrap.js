@@ -43,14 +43,25 @@ const shouldApplySchema = (createdDatabase, missingCoreTables) => {
   return createdDatabase || missingCoreTables;
 };
 
-const shouldLogSql = process.env.DEBUG_BOOTSTRAP !== 'false';
+const shouldLogSql = (() => {
+  const flag = process.env.DEBUG_BOOTSTRAP;
+
+  if (flag === undefined) {
+    return true;
+  }
+
+  const normalized = flag.trim().toLowerCase();
+  return !['false', '0', 'no', 'off'].includes(normalized);
+})();
 
 const logSql = (sql, params) => {
   if (!shouldLogSql) {
     return;
   }
 
-  console.info('[bootstrap] SQL>', sql, params ?? []);
+  const serializedParams = params ? JSON.stringify(params) : '[]';
+  process.stdout.write(`[#bootstrap] SQL> ${sql}\n`);
+  process.stdout.write(`[#bootstrap] params> ${serializedParams}\n`);
 };
 
 const execute = async (client, sql, params) => {
@@ -59,12 +70,13 @@ const execute = async (client, sql, params) => {
   try {
     return await client.query(sql, params);
   } catch (error) {
-    console.error('[bootstrap] Error al ejecutar SQL', {
+    const payload = {
       sql,
       params,
       position: error?.position,
       code: error?.code
-    });
+    };
+    process.stderr.write(`[#bootstrap] Error al ejecutar SQL ${JSON.stringify(payload)}\n`);
     throw error;
   }
 };
@@ -291,23 +303,23 @@ export default async function bootstrapDatabase() {
               try {
                 await execute(schemaClient, statement);
               } catch (error) {
-                console.error(`[bootstrap] Falló la sentencia #${idx + 1}`, {
+                const info = {
                   code: error?.code,
                   position: error?.position
-                });
+                };
+                process.stderr.write(`[#bootstrap] Falló la sentencia #${idx + 1} ${JSON.stringify(info)}\n`);
 
                 if (error?.position) {
                   const position = Number(error.position);
                   const preview = statement.slice(Math.max(0, position - 80), position + 80);
-                  console.error('[bootstrap] preview cerca de la posición', position, '\n', preview);
+                  process.stderr.write(`[#bootstrap] preview cerca de la posición ${position}\n${preview}\n`);
                 } else {
-                  console.error('[bootstrap] sentencia completa que falló:\n', statement);
+                  process.stderr.write(`[#bootstrap] sentencia completa que falló:\n${statement}\n`);
                 }
 
                 throw error;
               }
             }
-
             console.log(`Applied schema from ${schemaPath} en ${statements.length} sentencias`);
           } finally {
             await schemaClient.end().catch(() => {});
