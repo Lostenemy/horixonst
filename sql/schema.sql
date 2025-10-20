@@ -101,6 +101,9 @@ CREATE TABLE IF NOT EXISTS device_readings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_device_readings_device_location_seen_at
+    ON device_readings (device_id, location_id, seen_at DESC);
+
 CREATE TABLE IF NOT EXISTS device_state_snapshots (
     id SERIAL PRIMARY KEY,
     device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
@@ -114,6 +117,9 @@ CREATE TABLE IF NOT EXISTS device_state_snapshots (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (device_id, location_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_device_state_snapshots_device_location
+    ON device_state_snapshots (device_id, location_id);
 
 CREATE TABLE IF NOT EXISTS alarms (
     id SERIAL PRIMARY KEY,

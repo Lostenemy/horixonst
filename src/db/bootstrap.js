@@ -50,17 +50,16 @@ const hasMissingCoreTables = async (connectionConfig) => {
     return false;
   }
 
-  const tableList = requiredTables.map((table) => format('%L', table)).join(', ');
   const missingTablesSql = `
     SELECT COUNT(*)::INT AS present
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN (${tableList})`;
+      AND table_name = ANY($1::text[])`;
   const client = new Client(connectionConfig);
 
   try {
     await client.connect();
-    const { rows } = await client.query(missingTablesSql);
+    const { rows } = await client.query(missingTablesSql, [requiredTables]);
 
     const present = rows?.[0]?.present ?? 0;
     return present < requiredTables.length;
