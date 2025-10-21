@@ -175,6 +175,16 @@ export const createMqttClient = () => {
   });
 
   client.on('error', (err) => {
+    if (err?.code === 'EAI_AGAIN' || err?.code === 'ENOTFOUND') {
+      console.warn('MQTT broker no resolvió DNS aún, se reintentará automáticamente.', err);
+      return;
+    }
+
+    if (err?.code === 'ECONNREFUSED') {
+      console.warn('MQTT broker rechazó la conexión, esperando siguiente reintento.', err);
+      return;
+    }
+
     console.error('MQTT error', err);
   });
 

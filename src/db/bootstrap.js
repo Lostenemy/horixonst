@@ -11,6 +11,74 @@ const { Client } = pkg;
 
 let bootstrapped = false;
 
+const RETRYABLE_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  'EHOSTUNREACH'
+]);
+
+const RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 12000];
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const shouldRetryConnectionError = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  const code = error.code || error.errno;
+
+  if (code && RETRYABLE_CODES.has(code)) {
+    return true;
+  }
+
+  const message = typeof error.message === 'string' ? error.message : '';
+  return message.includes('getaddrinfo');
+};
+
+const connectWithRetry = async (createClient, label) => {
+  let attempt = 0;
+  let lastError;
+
+  while (attempt <= RETRY_DELAYS_MS.length) {
+    const client = createClient();
+    try {
+      await client.connect();
+
+      if (attempt > 0 && shouldLogSql()) {
+        console.log(`[#bootstrap] conexión a ${label} establecida tras ${attempt + 1} intentos`);
+      }
+
+      return client;
+    } catch (error) {
+      lastError = error;
+      await client.end().catch(() => {});
+
+      if (shouldRetryConnectionError(error) && attempt < RETRY_DELAYS_MS.length) {
+        const wait = RETRY_DELAYS_MS[attempt];
+        console.warn(`[#bootstrap] ${label} no disponible (${error.code || error.message}). Reintento en ${wait}ms`);
+        await sleep(wait);
+        attempt += 1;
+        continue;
+      }
+
+      console.error(`[#bootstrap] Fallo al conectar con ${label}`, {
+        code: error?.code,
+        errno: error?.errno,
+        message: error?.message
+      });
+      throw error;
+    }
+  }
+
+  throw lastError;
+};
+
 const resolveSchemaPath = () => {
   const configuredPath = process.env.DB_SCHEMA_PATH;
 
@@ -77,6 +145,10 @@ const execute = async (client, sql, params) => {
       code: error?.code
     };
     console.error('[#bootstrap] Error al ejecutar SQL', payload);
+    console.error('[#bootstrap] SQL que falló:\n', sql);
+    if (params !== undefined) {
+      console.error('[#bootstrap] Parámetros de la sentencia:', params);
+    }
     throw error;
   }
 };
@@ -180,10 +252,11 @@ const hasMissingCoreTables = async (connectionConfig) => {
     FROM information_schema.tables
     WHERE table_schema = $1
       AND table_name = ANY($2::text[])`;
-  const client = new Client(connectionConfig);
+  const clientFactory = () => new Client(connectionConfig);
+  let client;
 
   try {
-    await client.connect();
+    client = await connectWithRetry(clientFactory, `PostgreSQL (${connectionConfig.database})`);
     const { rows } = await execute(client, missingTablesSql, ['public', requiredTables]);
 
     const present = rows?.[0]?.present ?? 0;
@@ -192,7 +265,7 @@ const hasMissingCoreTables = async (connectionConfig) => {
     console.warn('No se pudo comprobar el estado del esquema, se forzará su aplicación.', error);
     return true;
   } finally {
-    await client.end().catch(() => {});
+    await client?.end().catch(() => {});
   }
 };
 
@@ -212,19 +285,22 @@ export default async function bootstrapDatabase() {
   const targetPassword = process.env.DB_PASSWORD || '20025@BLELoRa';
   const targetDatabase = process.env.DB_NAME || 'horixonst';
 
-  const client = new Client({
+  const rootConfig = {
     host,
     port,
     user: rootUser,
     password: rootPassword,
     database: rootDatabase,
     ssl
-  });
+  };
+
+  const createRootClient = () => new Client(rootConfig);
+  let client;
 
   let createdDatabase = false;
 
   try {
-    await client.connect();
+    client = await connectWithRetry(createRootClient, `PostgreSQL (${rootDatabase})`);
 
     const roleExists = await execute(
       client,
@@ -284,17 +360,20 @@ export default async function bootstrapDatabase() {
         const schemaSql = await readFile(schemaPath, 'utf8');
 
         if (schemaSql && schemaSql.trim().length > 0) {
-          const schemaClient = new Client({
+          const schemaConfig = {
             host,
             port,
             user: rootUser,
             password: rootPassword,
             database: targetDatabase,
             ssl
-          });
+          };
+
+          const createSchemaClient = () => new Client(schemaConfig);
+          let schemaClient;
 
           try {
-            await schemaClient.connect();
+            schemaClient = await connectWithRetry(createSchemaClient, `PostgreSQL esquema (${targetDatabase})`);
             const statements = splitSqlStatements(schemaSql);
 
             for (let idx = 0; idx < statements.length; idx += 1) {
@@ -326,7 +405,7 @@ export default async function bootstrapDatabase() {
             }
             console.log(`Applied schema from ${schemaPath} en ${statements.length} sentencias`);
           } finally {
-            await schemaClient.end().catch(() => {});
+            await schemaClient?.end().catch(() => {});
           }
         } else {
           console.warn(`El archivo de esquema ${schemaPath} está vacío; no se aplicaron cambios.`);
@@ -342,6 +421,6 @@ export default async function bootstrapDatabase() {
     console.error('Failed to bootstrap database', error);
     throw error;
   } finally {
-    await client.end().catch(() => {});
+    await client?.end().catch(() => {});
   }
 }

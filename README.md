@@ -99,6 +99,10 @@ Esta aplicación implementa un servidor de ingesta MQTT y un portal web para la 
 
 > El contenedor de la aplicación ejecuta una fase de "bootstrap" que crea la base de datos y el rol configurados si todavía no existen.
 
+> Para diagnosticar problemas con el esquema puedes dejar `DEBUG_BOOTSTRAP=on` (valor por defecto). El proceso registrará en los logs cada sentencia SQL, sus parámetros y, si falla, mostrará un fragmento de la instrucción cerca de la posición reportada por PostgreSQL.
+
+> El broker EMQX incluye ahora un `healthcheck` que garantiza que el servicio `app` no se inicie hasta que tanto PostgreSQL como MQTT estén aceptando conexiones. Además, el cliente de base de datos reintenta automáticamente los errores transitorios de DNS (`EAI_AGAIN`) y conexiones rechazadas antes de abandonar.
+
 > Puedes controlar cómo se aplica el esquema SQL mediante `DB_BOOTSTRAP_SCHEMA` (`on-create`, `on-missing`, `always` o `never`) y, si lo necesitas, señalar un archivo alternativo con `DB_SCHEMA_PATH`. En el modo por defecto (`on-create`) el bootstrap también verifica si faltan las tablas básicas (`users`, `user_roles`) y, de ser así, reaplica el esquema automáticamente.
 
 > Como todos los puertos se exponen únicamente en `127.0.0.1`, configura tu reverse proxy (por ejemplo, Nginx) para aceptar las peticiones públicas en `horizonst.com.es`, terminar TLS y reenviar el tráfico a las direcciones locales indicadas arriba.

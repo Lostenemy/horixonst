@@ -21,6 +21,12 @@ services:
       - emqx-data:/opt/emqx/data
       - emqx-log:/opt/emqx/log
       - emqx-config:/opt/emqx/etc
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/emqx/bin/emqx ctl status | grep -q is_running"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
 
   db:
     image: postgres:15-alpine
@@ -76,7 +82,7 @@ services:
       db:
         condition: service_healthy
       mqtt:
-        condition: service_started
+        condition: service_healthy
     environment:
       PORT: 8080
       DB_HOST: db
