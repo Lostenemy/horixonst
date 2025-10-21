@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import format from 'pg-format';
 
 dotenv.config();
 
@@ -10,9 +11,73 @@ const { Client } = pkg;
 
 let bootstrapped = false;
 
-const quoteIdentifier = (value) => value.replace(/"/g, '""');
+const RETRYABLE_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  'EHOSTUNREACH'
+]);
 
-const withIdentifier = (value) => `"${quoteIdentifier(value)}"`;
+const RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 12000];
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const shouldRetryConnectionError = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  const code = error.code || error.errno;
+
+  if (code && RETRYABLE_CODES.has(code)) {
+    return true;
+  }
+
+  const message = typeof error.message === 'string' ? error.message : '';
+  return message.includes('getaddrinfo');
+};
+
+const connectWithRetry = async (createClient, label) => {
+  let attempt = 0;
+  let lastError;
+
+  while (attempt <= RETRY_DELAYS_MS.length) {
+    const client = createClient();
+    try {
+      await client.connect();
+
+      if (attempt > 0 && shouldLogSql()) {
+        console.log(`[#bootstrap] conexión a ${label} establecida tras ${attempt + 1} intentos`);
+      }
+
+      return client;
+    } catch (error) {
+      lastError = error;
+      await client.end().catch(() => {});
+
+      if (shouldRetryConnectionError(error) && attempt < RETRY_DELAYS_MS.length) {
+        const wait = RETRY_DELAYS_MS[attempt];
+        console.warn(`[#bootstrap] ${label} no disponible (${error.code || error.message}). Reintento en ${wait}ms`);
+        await sleep(wait);
+        attempt += 1;
+        continue;
+      }
+
+      console.error(`[#bootstrap] Fallo al conectar con ${label}`, {
+        code: error?.code,
+        errno: error?.errno,
+        message: error?.message
+      });
+      throw error;
+    }
+  }
+
+  throw lastError;
+};
 
 const resolveSchemaPath = () => {
   const configuredPath = process.env.DB_SCHEMA_PATH;
@@ -46,19 +111,153 @@ const shouldApplySchema = (createdDatabase, missingCoreTables) => {
   return createdDatabase || missingCoreTables;
 };
 
-const hasMissingCoreTables = async (connectionConfig) => {
-  const requiredTables = ['users', 'user_roles'];
-  const client = new Client(connectionConfig);
+const shouldLogSql = () => {
+  const flag = process.env.DEBUG_BOOTSTRAP;
+
+  if (flag === undefined) {
+    return true;
+  }
+
+  const normalized = flag.trim().toLowerCase();
+  return !['false', '0', 'no', 'off'].includes(normalized);
+};
+
+const logSql = (sql, params) => {
+  if (!shouldLogSql()) {
+    return;
+  }
+
+  const serializedParams = params !== undefined ? JSON.stringify(params) : '[]';
+  console.log(`[#bootstrap] SQL> ${sql}`);
+  console.log(`[#bootstrap] params> ${serializedParams}`);
+};
+
+const execute = async (client, sql, params) => {
+  logSql(sql, params);
 
   try {
-    await client.connect();
-    const { rows } = await client.query(
-      `SELECT COUNT(*)::INT AS present
-       FROM information_schema.tables
-       WHERE table_schema = 'public'
-         AND table_name = ANY($1)`,
-      [requiredTables]
-    );
+    return await client.query(sql, params);
+  } catch (error) {
+    const payload = {
+      sql,
+      params,
+      position: error?.position,
+      code: error?.code
+    };
+    console.error('[#bootstrap] Error al ejecutar SQL', payload);
+    console.error('[#bootstrap] SQL que falló:\n', sql);
+    if (params !== undefined) {
+      console.error('[#bootstrap] Parámetros de la sentencia:', params);
+    }
+    throw error;
+  }
+};
+
+function splitSqlStatements(sql) {
+  const stmts = [];
+  let i = 0;
+  let start = 0;
+  let inSingle = false;
+  let inDouble = false;
+  let inLineComment = false;
+  let inBlockComment = false;
+  let dollarTag = null;
+
+  while (i < sql.length) {
+    const c = sql[i];
+    const n = sql[i + 1];
+
+    if (!inSingle && !inDouble && !dollarTag && !inBlockComment && c === '-' && n === '-' && !inLineComment) {
+      inLineComment = true;
+      i += 2;
+      continue;
+    }
+    if (inLineComment && c === '\n') {
+      inLineComment = false;
+      i++;
+      continue;
+    }
+    if (!inSingle && !inDouble && !dollarTag && !inLineComment && c === '/' && n === '*') {
+      inBlockComment = true;
+      i += 2;
+      continue;
+    }
+    if (inBlockComment && c === '*' && n === '/') {
+      inBlockComment = false;
+      i += 2;
+      continue;
+    }
+    if (inLineComment || inBlockComment) {
+      i++;
+      continue;
+    }
+
+    if (!dollarTag && !inDouble && c === '\'') {
+      inSingle = !inSingle;
+      i++;
+      continue;
+    }
+    if (!dollarTag && !inSingle && c === '"') {
+      inDouble = !inDouble;
+      i++;
+      continue;
+    }
+
+    if (!inSingle && !inDouble) {
+      if (!dollarTag && c === '$') {
+        const match = sql.slice(i).match(/^\$([A-Za-z0-9_]*)\$/);
+        if (match) {
+          dollarTag = match[1];
+          i += match[0].length;
+          continue;
+        }
+      } else if (dollarTag && c === '$') {
+        const match = sql.slice(i).match(/^\$([A-Za-z0-9_]*)\$/);
+        if (match && match[1] === dollarTag) {
+          dollarTag = null;
+          i += match[0].length;
+          continue;
+        }
+      }
+    }
+
+    if (!inSingle && !inDouble && !dollarTag && c === ';') {
+      const chunk = sql.slice(start, i).trim();
+      if (chunk) {
+        stmts.push(chunk);
+      }
+      start = i + 1;
+    }
+
+    i++;
+  }
+
+  const tail = sql.slice(start).trim();
+  if (tail) {
+    stmts.push(tail);
+  }
+
+  return stmts;
+}
+
+const hasMissingCoreTables = async (connectionConfig) => {
+  const requiredTables = ['users', 'user_roles'];
+
+  if (requiredTables.length === 0) {
+    return false;
+  }
+
+  const missingTablesSql = `
+    SELECT COUNT(*)::INT AS present
+    FROM information_schema.tables
+    WHERE table_schema = $1
+      AND table_name = ANY($2::text[])`;
+  const clientFactory = () => new Client(connectionConfig);
+  let client;
+
+  try {
+    client = await connectWithRetry(clientFactory, `PostgreSQL (${connectionConfig.database})`);
+    const { rows } = await execute(client, missingTablesSql, ['public', requiredTables]);
 
     const present = rows?.[0]?.present ?? 0;
     return present < requiredTables.length;
@@ -66,7 +265,7 @@ const hasMissingCoreTables = async (connectionConfig) => {
     console.warn('No se pudo comprobar el estado del esquema, se forzará su aplicación.', error);
     return true;
   } finally {
-    await client.end().catch(() => {});
+    await client?.end().catch(() => {});
   }
 };
 
@@ -86,40 +285,60 @@ export default async function bootstrapDatabase() {
   const targetPassword = process.env.DB_PASSWORD || '20025@BLELoRa';
   const targetDatabase = process.env.DB_NAME || 'horixonst';
 
-  const client = new Client({
+  const rootConfig = {
     host,
     port,
     user: rootUser,
     password: rootPassword,
     database: rootDatabase,
     ssl
-  });
+  };
+
+  const createRootClient = () => new Client(rootConfig);
+  let client;
 
   let createdDatabase = false;
 
   try {
-    await client.connect();
+    client = await connectWithRetry(createRootClient, `PostgreSQL (${rootDatabase})`);
 
-    const roleExists = await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [targetUser]);
+    const roleExists = await execute(
+      client,
+      'SELECT 1 FROM pg_roles WHERE rolname = $1',
+      [targetUser]
+    );
+
+    const hasTargetPassword = typeof targetPassword === 'string' && targetPassword.length > 0;
 
     if (roleExists.rowCount === 0) {
-      await client.query(`CREATE ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`, [targetPassword]);
+      const createRoleSql = hasTargetPassword
+        ? format('CREATE ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword)
+        : format('CREATE ROLE %I WITH LOGIN', targetUser);
+      await execute(client, createRoleSql);
       console.log(`Created database role ${targetUser}`);
-    } else if (targetPassword) {
-      await client.query(`ALTER ROLE ${withIdentifier(targetUser)} WITH LOGIN PASSWORD $1`, [targetPassword]);
+    } else if (hasTargetPassword) {
+      const alterRoleSql = format('ALTER ROLE %I WITH LOGIN PASSWORD %L', targetUser, targetPassword);
+      await execute(client, alterRoleSql);
     }
 
-    const dbExists = await client.query('SELECT 1 FROM pg_database WHERE datname = $1', [targetDatabase]);
+    const dbExists = await execute(
+      client,
+      'SELECT 1 FROM pg_database WHERE datname = $1',
+      [targetDatabase]
+    );
 
     if (dbExists.rowCount === 0) {
-      await client.query(`CREATE DATABASE ${withIdentifier(targetDatabase)} OWNER ${withIdentifier(targetUser)}`);
+      const createDatabaseSql = format('CREATE DATABASE %I OWNER %I', targetDatabase, targetUser);
+      await execute(client, createDatabaseSql);
       console.log(`Created database ${targetDatabase}`);
       createdDatabase = true;
     } else {
-      await client.query(`ALTER DATABASE ${withIdentifier(targetDatabase)} OWNER TO ${withIdentifier(targetUser)}`);
+      const alterDatabaseSql = format('ALTER DATABASE %I OWNER TO %I', targetDatabase, targetUser);
+      await execute(client, alterDatabaseSql);
     }
 
-    await client.query(`GRANT ALL PRIVILEGES ON DATABASE ${withIdentifier(targetDatabase)} TO ${withIdentifier(targetUser)}`);
+    const grantSql = format('GRANT ALL PRIVILEGES ON DATABASE %I TO %I', targetDatabase, targetUser);
+    await execute(client, grantSql);
 
     let missingCoreTables = createdDatabase;
 
@@ -141,21 +360,52 @@ export default async function bootstrapDatabase() {
         const schemaSql = await readFile(schemaPath, 'utf8');
 
         if (schemaSql && schemaSql.trim().length > 0) {
-          const schemaClient = new Client({
+          const schemaConfig = {
             host,
             port,
             user: rootUser,
             password: rootPassword,
             database: targetDatabase,
             ssl
-          });
+          };
+
+          const createSchemaClient = () => new Client(schemaConfig);
+          let schemaClient;
 
           try {
-            await schemaClient.connect();
-            await schemaClient.query(schemaSql);
-            console.log(`Applied schema from ${schemaPath}`);
+            schemaClient = await connectWithRetry(createSchemaClient, `PostgreSQL esquema (${targetDatabase})`);
+            const statements = splitSqlStatements(schemaSql);
+
+            for (let idx = 0; idx < statements.length; idx += 1) {
+              const statement = statements[idx];
+
+              if (shouldLogSql()) {
+                console.log(`[#bootstrap] ejecutando sentencia #${idx + 1}/${statements.length}`);
+              }
+
+              try {
+                await execute(schemaClient, statement);
+              } catch (error) {
+                const info = {
+                  code: error?.code,
+                  position: error?.position
+                };
+                console.error(`[#bootstrap] Falló la sentencia #${idx + 1}`, info);
+
+                if (error?.position) {
+                  const position = Number(error.position);
+                  const preview = statement.slice(Math.max(0, position - 80), position + 80);
+                  console.error(`[#bootstrap] preview cerca de la posición ${position}\n${preview}`);
+                } else {
+                  console.error(`[#bootstrap] sentencia completa que falló:\n${statement}`);
+                }
+
+                throw error;
+              }
+            }
+            console.log(`Applied schema from ${schemaPath} en ${statements.length} sentencias`);
           } finally {
-            await schemaClient.end().catch(() => {});
+            await schemaClient?.end().catch(() => {});
           }
         } else {
           console.warn(`El archivo de esquema ${schemaPath} está vacío; no se aplicaron cambios.`);
@@ -171,6 +421,6 @@ export default async function bootstrapDatabase() {
     console.error('Failed to bootstrap database', error);
     throw error;
   } finally {
-    await client.end().catch(() => {});
+    await client?.end().catch(() => {});
   }
 }
