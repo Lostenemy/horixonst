@@ -101,6 +101,9 @@ CREATE TABLE IF NOT EXISTS device_readings (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_device_readings_device_location_seen_at
+    ON device_readings (device_id, location_id, seen_at DESC);
+
 CREATE TABLE IF NOT EXISTS device_state_snapshots (
     id SERIAL PRIMARY KEY,
     device_id INTEGER NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
@@ -114,6 +117,9 @@ CREATE TABLE IF NOT EXISTS device_state_snapshots (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (device_id, location_id)
 );
+
+CREATE INDEX IF NOT EXISTS idx_device_state_snapshots_device_location
+    ON device_state_snapshots (device_id, location_id);
 
 CREATE TABLE IF NOT EXISTS alarms (
     id SERIAL PRIMARY KEY,
@@ -148,5 +154,5 @@ ON CONFLICT DO NOTHING;
 
 -- Create an initial administrator (password: admin1234)
 INSERT INTO users (username, password_hash, role_id)
-SELECT 'admin', '$2b$10$8jEafgAvFp8ZUBKbjrKMjO0Up4Wr9PXgC7cmkQCLOwBEmc6kAMPx6', id FROM user_roles WHERE name = 'admin'
+SELECT 'admin', '$2a$10$73fMy2e28P.aexLrnxMe2uWefWMdrL/K253/vRFIdpUdBMn/mYt5i', id FROM user_roles WHERE name = 'admin'
 ON CONFLICT (username) DO NOTHING;

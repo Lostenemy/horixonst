@@ -8,6 +8,64 @@ const { Pool } = pkg;
 
 let poolPromise;
 
+const RETRYABLE_CODES = new Set([
+  'EAI_AGAIN',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH'
+]);
+
+const RETRY_DELAYS_MS = [500, 1000, 2000, 4000, 8000, 12000];
+
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
+
+const shouldRetry = (error) => {
+  if (!error) {
+    return false;
+  }
+
+  const code = error.code || error.errno;
+  if (code && RETRYABLE_CODES.has(code)) {
+    return true;
+  }
+
+  const message = typeof error.message === 'string' ? error.message : '';
+  return message.includes('getaddrinfo');
+};
+
+const waitForPool = async (pool) => {
+  let attempt = 0;
+  let lastError;
+
+  while (attempt <= RETRY_DELAYS_MS.length) {
+    try {
+      await pool.query('SELECT 1');
+      if (attempt > 0) {
+        console.log(`Conexión a PostgreSQL establecida tras ${attempt + 1} intentos`);
+      }
+      return;
+    } catch (error) {
+      lastError = error;
+
+      if (shouldRetry(error) && attempt < RETRY_DELAYS_MS.length) {
+        const wait = RETRY_DELAYS_MS[attempt];
+        console.warn(`PostgreSQL no disponible (${error.code || error.message}). Reintento en ${wait}ms`);
+        await sleep(wait);
+        attempt += 1;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError;
+};
+
 const createPool = async () => {
   await bootstrapDatabase();
 
@@ -26,6 +84,8 @@ const createPool = async () => {
     process.exit(-1);
   });
 
+  await waitForPool(pool);
+
   return pool;
 };
 
@@ -39,7 +99,17 @@ const ensurePool = () => {
 
 export const query = async (text, params) => {
   const pool = await ensurePool();
-  return pool.query(text, params);
+  try {
+    return await pool.query(text, params);
+  } catch (error) {
+    console.error('Error al ejecutar consulta SQL', {
+      sql: text,
+      params,
+      position: error?.position,
+      code: error?.code
+    });
+    throw error;
+  }
 };
 
 export const getClient = async () => {
