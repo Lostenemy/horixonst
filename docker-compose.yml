@@ -9,8 +9,6 @@ services:
       EMQX_DASHBOARD__DEFAULT_PASSWORD: "20025@BLELoRa"
       EMQX_AUTH__USER__1__USERNAME: mqtt
       EMQX_AUTH__USER__1__PASSWORD: "20025@BLELoRa"
-      EMQX_DASHBOARD__LISTENER__HTTP__ENABLE: "true"
-      EMQX_DASHBOARD__LISTENER__HTTP__BIND: 0.0.0.0:18083
     ports:
       - "127.0.0.1:1883:1883"
       - "127.0.0.1:8883:8883"
@@ -22,7 +20,7 @@ services:
       - emqx-log:/opt/emqx/log
       - emqx-config:/opt/emqx/etc
     healthcheck:
-      test: ["CMD-SHELL", "/opt/emqx/bin/emqx ctl status | grep -q is_running"]
+      test: ["CMD", "/opt/emqx/bin/emqx", "ctl", "status"]
       interval: 5s
       timeout: 3s
       retries: 20
