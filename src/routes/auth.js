@@ -21,24 +21,34 @@ router.post(
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
+
     const { username, password } = req.body;
-    const { rows } = await query(
-      `SELECT u.*, r.name AS role_name
-       FROM users u
-       JOIN user_roles r ON r.id = u.role_id
-       WHERE u.username = $1`,
-      [username]
-    );
-    const user = rows[0];
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+
+    try {
+      const { rows } = await query(
+        `SELECT u.*, r.name AS role_name
+         FROM users u
+         JOIN user_roles r ON r.id = u.role_id
+         WHERE u.username = $1`,
+        [username]
+      );
+
+      const user = rows[0];
+      if (!user) {
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+      }
+
+      const valid = await bcrypt.compare(password, user.password_hash);
+      if (!valid) {
+        return res.status(401).json({ error: 'Credenciales inválidas' });
+      }
+
+      const token = jwt.sign({ sub: user.id, role: user.role_name }, getSecret(), { expiresIn: '12h' });
+      return res.json({ token, user: { id: user.id, username: user.username, role: user.role_name } });
+    } catch (err) {
+      console.error('Error al iniciar sesión', err);
+      return res.status(500).json({ error: 'Error interno al iniciar sesión' });
     }
-    const valid = await bcrypt.compare(password, user.password_hash);
-    if (!valid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-    const token = jwt.sign({ sub: user.id, role: user.role_name }, getSecret(), { expiresIn: '12h' });
-    return res.json({ token, user: { id: user.id, username: user.username, role: user.role_name } });
   }
 );
 
